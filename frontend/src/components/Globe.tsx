@@ -84,38 +84,26 @@ export default function Globe({ player }: GlobeProps) {
 
   return (
     <div className="globe-container">
-      <GlobeGL
+            <GlobeGL
         ref={globeEl}
         globeImageUrl="https://unpkg.com/three-globe/example/img/earth-dark.jpg"
         backgroundImageUrl="https://unpkg.com/three-globe/example/img/night-sky.png"
+        pointsData={points}
         pointColor={(d: any) => d.color || '#ff3333'}
         pointRadius={(d: any) => d.size || 1.5}
         pointResolution={25}
-        pointsData={points}
         pointLabel={(d: any) => d.name || ''}
-        pointLabelSize={2.5}
-        pointLabelColor={() => '#ff3333'}
-        pointLabelDotRadius={1.2}
-        pointLabelDotColor={() => '#ff3333'}
         pointAltitude={0.02}
-        pointLabelTextAnchor="middle"
-        pointLabelPixelOffset={[0, -15]}
-        pointLabelBgColor={() => 'rgba(0, 0, 0, 0.8)'}
-        pointLabelBgPadding={[8, 4]}
-        pointLabelBgRadius={4}
-        showAtmosphere={true}
-        atmosphereColor="#ff3333"
-        atmosphereAltitude={0.25}
-        showGlow={true}
-        glowCoefficient={0.1}
-        glowPower={2}
-        glowColor="#ff3333"
+        
+        // Arcs
         arcsData={[]}
         arcColor={() => '#ff3333'}
         arcDashLength={0.4}
         arcDashGap={0.2}
         arcDashAnimateTime={2000}
         arcStroke={1.5}
+
+        // Rings
         ringsData={points}
         ringColor={() => '#ff3333'}
         ringMaxRadius={5}
@@ -123,17 +111,15 @@ export default function Globe({ player }: GlobeProps) {
         ringRepeatPeriod={1000}
         ringResolution={64}
         ringAltitude={0.02}
-        ringWeight={2}
+
+        // Atmosphère
+        showAtmosphere={true}
+        atmosphereColor="#ff3333"
+        atmosphereAltitude={0.25}
+
         onGlobeReady={() => {
           if (globeEl.current) {
             globeEl.current.pointOfView({ lat: 0, lng: 0, altitude: 1.5 }, 0)
-            // Active les effets de fluorescence
-            globeEl.current.scene().children.forEach((child: any) => {
-              if (child.material) {
-                child.material.emissive = { r: 1, g: 0.2, b: 0.2 }
-                child.material.emissiveIntensity = 0.3
-              }
-            })
           }
         }}
       />
