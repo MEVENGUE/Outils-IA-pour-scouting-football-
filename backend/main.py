@@ -32,7 +32,13 @@ app = FastAPI(title="Unified Scouting API", version="3.0")
 # --- Middleware CORS ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # En production, restreindre à l'URL du frontend
+    allow_origins=[
+        "http://localhost:5173",  # Développement local
+        "http://127.0.0.1:5173",  # Développement local
+        "https://*.vercel.app",   # Tous les déploiements Vercel
+        # Ajoutez votre domaine Vercel spécifique ici si nécessaire
+        # "https://votre-app.vercel.app",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

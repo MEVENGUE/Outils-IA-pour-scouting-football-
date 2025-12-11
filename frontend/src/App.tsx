@@ -4,7 +4,8 @@ import PlayerDossier from './components/PlayerDossier'
 import AIScoutingAssistant from './components/AIScoutingAssistant'
 import './App.css'
 
-const API_URL = 'http://127.0.0.1:8000'
+// Utilise la variable d'environnement VITE_API_URL en production, ou localhost en développement
+const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
 
 export interface Player {
   id?: number
