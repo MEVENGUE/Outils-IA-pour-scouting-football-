@@ -12,8 +12,11 @@ import os
 import json
 import re
 
-# Ajoute le dossier de scraping au path pour pouvoir importer les fonctions
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'scraping'))
+# Ajoute la RACINE du projet au PYTHONPATH (pour pouvoir faire `from scraping.scraper import ...`)
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if BASE_DIR not in sys.path:
+    sys.path.append(BASE_DIR)
+
 from scraping.scraper import scrape_and_save_player_data
 
 # Import du module de base de données centralisé
