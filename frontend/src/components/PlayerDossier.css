@@ -1,0 +1,326 @@
+.player-dossier {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  height: 100%;
+}
+
+.player-dossier h2 {
+  color: #ff3333;
+  font-size: 1.8rem;
+  margin-bottom: 1.5rem;
+  text-shadow: 
+    0 0 10px rgba(255, 51, 51, 0.8),
+    0 0 20px rgba(255, 51, 51, 0.4);
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  border-bottom: 2px solid rgba(255, 68, 68, 0.3);
+  padding-bottom: 0.5rem;
+}
+
+.loading,
+.error,
+.empty-state {
+  text-align: center;
+  padding: 2rem;
+  color: #888;
+}
+
+.empty-state p {
+  color: #888;
+  font-size: 1rem;
+  margin-top: 1rem;
+}
+
+.error {
+  color: #ff4444;
+}
+
+.empty-state h2 {
+  margin-bottom: 0.5rem;
+}
+
+.player-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.player-image {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #ff4444;
+  box-shadow: 0 0 20px rgba(255, 68, 68, 0.3);
+}
+
+.player-name {
+  font-size: 1.5rem;
+  color: #fff;
+  text-align: center;
+}
+
+.player-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.info-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem;
+  background: #252525;
+  border-radius: 4px;
+}
+
+.info-label {
+  color: #888;
+  font-weight: 500;
+}
+
+.info-value {
+  color: #fff;
+  font-weight: 600;
+}
+
+.player-stats {
+  margin-top: 1rem;
+}
+
+.player-stats h3 {
+  color: #ff4444;
+  margin-bottom: 1rem;
+  font-size: 1.2rem;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1.5rem 1rem;
+  background: rgba(20, 0, 0, 0.6);
+  backdrop-filter: blur(10px);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 68, 68, 0.2);
+  box-shadow: 
+    0 4px 16px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 68, 68, 0.1),
+    0 0 15px rgba(255, 0, 0, 0.1);
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.stat-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, 
+    transparent, 
+    rgba(255, 68, 68, 0.6), 
+    rgba(255, 68, 68, 0.9), 
+    rgba(255, 68, 68, 0.6), 
+    transparent);
+}
+
+.stat-item:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 68, 68, 0.5);
+  box-shadow: 
+    0 6px 20px rgba(0, 0, 0, 0.5),
+    0 0 25px rgba(255, 68, 68, 0.3);
+}
+
+.stat-value {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #ff3333;
+  text-shadow: 
+    0 0 15px rgba(255, 51, 51, 0.9),
+    0 0 30px rgba(255, 51, 51, 0.5);
+  background: linear-gradient(135deg, #ff3333 0%, #ff6666 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.stat-label {
+  font-size: 0.85rem;
+  color: #888;
+  margin-top: 0.5rem;
+}
+
+.scouting-report {
+  margin-top: 1rem;
+}
+
+.scouting-report h3 {
+  color: #ff3333;
+  margin-bottom: 1.5rem;
+  font-size: 1.4rem;
+  text-shadow: 0 0 10px rgba(255, 51, 51, 0.6);
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.report-content {
+  padding: 1.5rem;
+  background: rgba(10, 0, 0, 0.6);
+  backdrop-filter: blur(10px);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 68, 68, 0.2);
+  box-shadow: 
+    inset 0 2px 8px rgba(0, 0, 0, 0.3),
+    0 0 15px rgba(255, 0, 0, 0.1);
+  line-height: 1.7;
+  color: #e0e0e0;
+  max-height: 300px;
+  overflow-y: auto;
+  font-size: 0.95rem;
+}
+
+.report-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.report-content::-webkit-scrollbar-track {
+  background: rgba(10, 0, 0, 0.5);
+  border-radius: 3px;
+}
+
+.report-content::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(255, 68, 68, 0.6), rgba(255, 0, 0, 0.8));
+  border-radius: 3px;
+  box-shadow: 0 0 10px rgba(255, 68, 68, 0.5);
+}
+
+.report-content::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(255, 68, 68, 0.8), rgba(255, 0, 0, 1));
+  box-shadow: 0 0 15px rgba(255, 68, 68, 0.8);
+}
+
+/* Graphiques et visualisations */
+.stats-charts {
+  margin-top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.chart-item {
+  padding: 1.5rem;
+  background: rgba(10, 0, 0, 0.6);
+  backdrop-filter: blur(10px);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 68, 68, 0.2);
+  box-shadow: 
+    0 4px 16px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 68, 68, 0.1),
+    0 0 15px rgba(255, 0, 0, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+
+.chart-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, 
+    transparent, 
+    rgba(255, 68, 68, 0.6), 
+    rgba(255, 68, 68, 0.9), 
+    rgba(255, 68, 68, 0.6), 
+    transparent);
+}
+
+.chart-item h4 {
+  color: #ff3333;
+  font-size: 1.1rem;
+  margin-bottom: 1.5rem;
+  text-align: center;
+  text-shadow: 0 0 8px rgba(255, 51, 51, 0.6);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.progress-bar-container {
+  margin-bottom: 1rem;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 30px;
+  background: #1a1a1a;
+  border-radius: 15px;
+  overflow: hidden;
+  position: relative;
+  border: 1px solid #333;
+}
+
+.progress-fill {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: width 0.5s ease;
+  position: relative;
+}
+
+.goals-progress {
+  background: linear-gradient(90deg, #ff4444, #ff6666);
+  box-shadow: 0 0 10px rgba(255, 68, 68, 0.5);
+}
+
+.assists-progress {
+  background: linear-gradient(90deg, #44ff44, #66ff66);
+  box-shadow: 0 0 10px rgba(68, 255, 68, 0.5);
+}
+
+.contribution-circle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  position: relative;
+}
+
+.contribution-value {
+  font-size: 3rem;
+  font-weight: bold;
+  color: #ff4444;
+  text-shadow: 0 0 20px rgba(255, 68, 68, 0.8);
+  margin-bottom: 0.5rem;
+}
+
+.contribution-label {
+  font-size: 1rem;
+  color: #888;
+  margin-bottom: 0.5rem;
+}
+
+.contribution-per-match {
+  font-size: 0.9rem;
+  color: #aaa;
+  font-style: italic;
+}
+
