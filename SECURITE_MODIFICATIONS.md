@@ -11,11 +11,6 @@ Ce document liste toutes les modifications effectuées pour sécuriser le code a
 - **Fichier** : `scraping/scraper.py` (ligne 116)
 - **Action** : Clé API retirée et remplacée par une variable d'environnement
 
-**Ancien code (RETIRÉ) :**
-```python
-OPENAI_API_KEY = "sk-proj-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-# ⚠️ Cette clé a été retirée pour des raisons de sécurité
-```
 
 **Nouveau code (SÉCURISÉ) :**
 ```python
