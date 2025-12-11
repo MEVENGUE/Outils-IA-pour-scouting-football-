@@ -17,7 +17,7 @@ interface Point {
 }
 
 export default function Globe({ player }: GlobeProps) {
-  const globeEl = useRef<any>()
+  const globeEl = useRef<any>(null)
   const [points, setPoints] = useState<Point[]>([])
 
   useEffect(() => {
