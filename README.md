@@ -13,6 +13,10 @@
 
 </div>
 
+
+## ⚠️ Uniquement sur PC (pas encore adapté sur Mobile 📱)
+
+
 ## 📋 Table des matières
 
 - [Description](#-description)
