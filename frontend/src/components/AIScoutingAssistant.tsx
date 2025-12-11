@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import type { Player } from '../App'
 import './AIScoutingAssistant.css'
 
-const API_URL = 'http://127.0.0.1:8000'
+const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
 
 interface AIScoutingAssistantProps {
   player: Player | null
