@@ -324,3 +324,127 @@
   font-style: italic;
 }
 
+/* ========== ADAPTATION MOBILE ========== */
+@media (max-width: 768px) {
+  .player-dossier h2 {
+    font-size: 1.4rem;
+    margin-bottom: 1rem;
+  }
+
+  .player-image {
+    width: 100px;
+    height: 100px;
+  }
+
+  .player-name {
+    font-size: 1.2rem;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.75rem;
+  }
+
+  .stat-item {
+    padding: 1rem 0.5rem;
+  }
+
+  .stat-value {
+    font-size: 2rem;
+  }
+
+  .stat-label {
+    font-size: 0.75rem;
+  }
+
+  .player-stats h3 {
+    font-size: 1rem;
+  }
+
+  .scouting-report h3 {
+    font-size: 1.1rem;
+  }
+
+  .report-content {
+    padding: 1rem;
+    font-size: 0.85rem;
+    max-height: 250px;
+  }
+
+  .chart-item {
+    padding: 1rem;
+  }
+
+  .chart-item h4 {
+    font-size: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .contribution-value {
+    font-size: 2.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .player-dossier h2 {
+    font-size: 1.2rem;
+  }
+
+  .player-image {
+    width: 80px;
+    height: 80px;
+  }
+
+  .player-name {
+    font-size: 1rem;
+  }
+
+  .info-item {
+    padding: 0.4rem;
+    font-size: 0.9rem;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+  }
+
+  .stat-item {
+    padding: 0.75rem 0.25rem;
+  }
+
+  .stat-value {
+    font-size: 1.5rem;
+  }
+
+  .stat-label {
+    font-size: 0.7rem;
+  }
+
+  .progress-bar {
+    height: 25px;
+  }
+
+  .progress-fill {
+    font-size: 0.75rem;
+  }
+
+  .contribution-value {
+    font-size: 2rem;
+  }
+
+  .contribution-label {
+    font-size: 0.9rem;
+  }
+
+  .contribution-per-match {
+    font-size: 0.8rem;
+  }
+
+  .report-content {
+    padding: 0.75rem;
+    font-size: 0.8rem;
+    max-height: 200px;
+  }
+}
+
