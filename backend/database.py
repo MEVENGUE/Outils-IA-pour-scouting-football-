@@ -7,12 +7,21 @@ from typing import Optional, Dict, Any, List
 
 # Configuration centralisée de la base de données
 DB_NAME = "players.db"
-# Chemin unique vers la DB dans le dossier scraping
-DB_PATH = os.path.join(os.path.dirname(__file__), '..', 'scraping', DB_NAME)
+
+# Chemin de la base de données compatible Railway + Local
+# Railway : utilise /app/data (volume persistant recommandé)
+# Local : utilise ./data (dossier créé automatiquement)
+BASE_DIR = os.getenv("RAILWAY_VOLUME_MOUNT_PATH", os.path.join(os.path.dirname(__file__), '..', 'data'))
+os.makedirs(BASE_DIR, exist_ok=True)
+
+DB_PATH = os.path.join(BASE_DIR, DB_NAME)
 
 def get_db_connection():
     """Retourne une connexion à la base de données avec row_factory configuré."""
-    conn = sqlite3.connect(DB_PATH)
+    # S'assure que le répertoire existe
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+    # check_same_thread=False est important avec FastAPI (multi-threading)
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     return conn
 
