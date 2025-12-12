@@ -271,9 +271,10 @@ def get_player_page_url(player_name, site):
             print(f"Erreur de recherche URL pour {player_name} sur {site}: {e}")
     return None
 
-def _age_from_birthdate(birthdate_str: str):
+def _age_from_birthdate_str(birthdate_str: str):
     """
     birthdate_str: '1998-12-20' ou '20/12/1998' etc.
+    ✅ Renommé pour éviter collision avec _age_from_birthdate(dob) pour Wikidata
     """
     if not birthdate_str:
         return None
@@ -339,7 +340,7 @@ def scrape_transfermarkt(url: str):
                 data["name"] = name
 
             birth = jsonld.get("birthDate")
-            age = _age_from_birthdate(birth) if birth else None
+            age = _age_from_birthdate_str(birth) if birth else None  # ✅ Fix: utilise _age_from_birthdate_str pour string
             if age is not None:
                 data["age"] = age
 
@@ -744,7 +745,7 @@ def _parse_wikidata_time(time_str: str):
         s = time_str.strip()
         if s.startswith("+"):
             s = s[1:]
-        return datetime.date.fromisoformat(s.split("T")[0])
+        return date.fromisoformat(s.split("T")[0])  # ✅ Fix: date.fromisoformat (pas datetime.date)
     except Exception:
         return None
 
@@ -908,6 +909,18 @@ def merge_keep_existing(dst: dict, src: dict) -> dict:
             dst[k] = v
     return dst
 
+def current_season_str() -> str:
+    """
+    Calcule la saison actuelle automatiquement (format "YYYY-YYYY").
+    Saison européenne démarre ~ juillet.
+    """
+    today = date.today()
+    y = today.year
+    # saison européenne démarre ~ juillet
+    if today.month >= 7:
+        return f"{y}-{y+1}"
+    return f"{y-1}-{y}"
+
 def scrape_wikipedia_image(player_name):
     """Scrape l'image du joueur depuis Wikipedia avec plusieurs tentatives."""
     if not player_name:
@@ -1001,10 +1014,12 @@ def save_player_to_db(player_data):
         cur.execute("SELECT * FROM players WHERE name = ?", (player_name,))
         row = cur.fetchone()
 
+        # ✅ Fix: calculer les colonnes AVANT de fermer la connexion
+        columns = [d[0] for d in cur.description] if cur.description else []
         conn.close()
 
         if row:
-            return dict(zip([d[0] for d in cur.description], row))
+            return dict(zip(columns, row))
 
         return None
 
@@ -1043,7 +1058,7 @@ def scrape_and_save_player_data(player_name: str):
 
         # 3) FBREF ensuite (stats saison courante)
         try:
-            fb = fbref_stats_for_player(all_data.get("name", normalized_name), season="2024-2025")
+            fb = fbref_stats_for_player(all_data.get("name", normalized_name), season=current_season_str())
             if fb:
                 all_data = merge_keep_existing(all_data, fb)
                 print(f"-> FBref OK: {all_data.get('appearances')} MP, {all_data.get('goals')} G, {all_data.get('assists')} A")
