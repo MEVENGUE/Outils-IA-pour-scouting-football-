@@ -30,6 +30,8 @@ def init_db():
         nationality TEXT,
         current_club TEXT,
         position TEXT,
+        position_tm TEXT,
+        position_fbref TEXT,
         market_value TEXT,
         height TEXT,
         weight TEXT,
@@ -83,7 +85,7 @@ def init_db():
     columns_to_add = [
         'scouting_report', 'image_url', 'weight', 'yellow_cards', 
         'red_cards', 'minutes_played', 'goals_per_match', 'assists_per_match',
-        'contract_expires', 'created_at', 'updated_at'
+        'contract_expires', 'position_tm', 'position_fbref', 'created_at', 'updated_at'
     ]
     for col in columns_to_add:
         try:
