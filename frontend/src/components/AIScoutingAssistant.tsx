@@ -2,9 +2,6 @@ import { useState, useEffect } from 'react'
 import type { Player } from '../App'
 import './AIScoutingAssistant.css'
 
-// Utilise la variable d'environnement VITE_API_URL en production, ou localhost en développement
-const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
-
 interface AIScoutingAssistantProps {
   player: Player | null
   onPlayerRequest: (playerName: string) => void
