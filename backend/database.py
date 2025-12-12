@@ -11,7 +11,14 @@ DB_NAME = "players.db"
 # Chemin de la base de données compatible Railway + Local
 # Railway : utilise /app/data (volume persistant recommandé)
 # Local : utilise ./data (dossier créé automatiquement)
-BASE_DIR = os.getenv("RAILWAY_VOLUME_MOUNT_PATH", os.path.join(os.path.dirname(__file__), '..', 'data'))
+if os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("PORT"):
+    # Production Railway : utilise /app/data
+    BASE_DIR = "/app/data"
+else:
+    # Développement local : utilise ./data
+    BASE_DIR = os.path.join(os.path.dirname(__file__), '..', 'data')
+
+# Crée le répertoire si nécessaire
 os.makedirs(BASE_DIR, exist_ok=True)
 
 DB_PATH = os.path.join(BASE_DIR, DB_NAME)
