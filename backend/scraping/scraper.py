@@ -8,6 +8,8 @@ import re
 import time
 import os
 import sys
+import json
+from datetime import date, datetime
 
 # Configuration de la base de données SQLite
 # Utilise maintenant le module centralisé depuis backend
@@ -268,130 +270,172 @@ def get_player_page_url(player_name, site):
             print(f"Erreur de recherche URL pour {player_name} sur {site}: {e}")
     return None
 
-def scrape_transfermarkt(url):
-    """Scrape les données depuis une page de profil Transfermarkt avec amélioration des statistiques."""
+def _age_from_birthdate(birthdate_str: str):
+    """
+    birthdate_str: '1998-12-20' ou '20/12/1998' etc.
+    """
+    if not birthdate_str:
+        return None
+    for fmt in ("%Y-%m-%d", "%d.%m.%Y", "%d/%m/%Y", "%Y/%m/%d"):
+        try:
+            d = datetime.strptime(birthdate_str, fmt).date()
+            today = date.today()
+            return today.year - d.year - ((today.month, today.day) < (d.month, d.day))
+        except ValueError:
+            continue
+    return None
+
+def _extract_jsonld_player(soup):
+    """
+    Transfermarkt met souvent un bloc <script type="application/ld+json"> contenant birthDate, height, name…
+    """
+    scripts = soup.select('script[type="application/ld+json"]')
+    for sc in scripts:
+        raw = sc.string or sc.get_text(strip=True)
+        if not raw:
+            continue
+        try:
+            data = json.loads(raw)
+        except Exception:
+            continue
+
+        # Parfois c'est une liste
+        items = data if isinstance(data, list) else [data]
+        for it in items:
+            if not isinstance(it, dict):
+                continue
+            t = (it.get("@type") or "").lower()
+            if t in ("person", "sportsplayer"):
+                return it
+    return None
+
+def _clean_text(s: str) -> str:
+    if not s:
+        return s
+    s = re.sub(r"[\u200b\u200e\u200f]", "", s)  # zero-width
+    s = " ".join(s.split())
+    return s.strip()
+
+def _parse_number(s: str):
+    if not s:
+        return None
+    m = re.search(r"\b(\d+)\b", s.replace(".", "").replace(",", ""))
+    return int(m.group(1)) if m else None
+
+def scrape_transfermarkt(url: str):
+    """Scrape les données depuis une page de profil Transfermarkt - Version robuste avec JSON-LD et fallbacks."""
     data = {}
     try:
-        resp = requests.get(url, headers=HEADERS)
+        resp = requests.get(url, headers=HEADERS, timeout=15)
         resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, 'html.parser')
+        soup = BeautifulSoup(resp.text, "html.parser")
 
-        # Nom, Club, Valeur
-        name_elem = soup.select_one('h1.data-header__headline')
-        if name_elem:
-            data['name'] = name_elem.get_text(strip=True).split('#')[0].strip()
-        
-        market_value_elem = soup.select_one('.data-header__market-value-wrapper')
-        if market_value_elem:
-            market_value_text = market_value_elem.get_text(strip=True)
-            # Extrait la valeur (ex: "€80.00m" ou "80.00m")
-            value_match = re.search(r'([€$]?[\d.,]+[mk]?)', market_value_text)
-            if value_match:
-                data['market_value'] = value_match.group(1)
-            else:
-                data['market_value'] = market_value_text.split(' ')[0] if market_value_text else 'N/A'
-        
-        club_link = soup.select_one('.data-header__club-info a')
-        data['current_club'] = club_link.get_text(strip=True) if club_link else 'N/A'
+        # --- 1) JSON-LD (le plus stable) ---
+        jsonld = _extract_jsonld_player(soup)
+        if jsonld:
+            name = _clean_text(jsonld.get("name", "")) or None
+            if name:
+                data["name"] = name
 
-        # Infos détaillées - Version robuste avec fallback
-        def norm(s: str) -> str:
-            return re.sub(r"\s+", " ", s.strip().lower())
+            birth = jsonld.get("birthDate")
+            age = _age_from_birthdate(birth) if birth else None
+            if age is not None:
+                data["age"] = age
 
-        # ---- 1) Lecture via info-table (méthode principale) ----
+            # height peut être "1.78 m" ou "1.78"
+            height = jsonld.get("height")
+            if isinstance(height, str) and height.strip():
+                data["height"] = _clean_text(height)
+            elif isinstance(height, (int, float)):
+                data["height"] = f"{height} m"
+
+        # --- 2) Header classique ---
+        name_elem = soup.select_one("h1.data-header__headline")
+        if name_elem and not data.get("name"):
+            data["name"] = _clean_text(name_elem.get_text(strip=True).split("#")[0])
+
+        mv_elem = soup.select_one(".data-header__market-value-wrapper")
+        if mv_elem:
+            mv_text = _clean_text(mv_elem.get_text(" ", strip=True))
+            m = re.search(r"(€\s?[\d.,]+\s?[mk]?)", mv_text, re.IGNORECASE)
+            data["market_value"] = _clean_text(m.group(1)) if m else mv_text
+
+        club_link = soup.select_one(".data-header__club-info a")
+        if club_link:
+            data["current_club"] = _clean_text(club_link.get_text(strip=True))
+
+        # --- 3) Info table (labels plus tolérants) ---
         for row in soup.select(".info-table__row"):
-            label_el = row.select_one(".info-table__label")
-            val_el = row.select_one(".info-table__content")
-            if not label_el or not val_el:
+            lab = row.select_one(".info-table__label")
+            val = row.select_one(".info-table__content")
+            if not lab or not val:
                 continue
+            label = _clean_text(lab.get_text(" ", strip=True)).lower()
+            content = _clean_text(val.get_text(" ", strip=True))
 
-            label = norm(label_el.get_text(" ", strip=True))
-            val = val_el.get_text(" ", strip=True).strip()
-
-            # AGE
-            if any(k in label for k in ["date of birth", "age", "geburtsdatum", "alter", "date de naissance"]):
-                m = re.search(r"\((\d{1,2})\)", val)
-                if m:
-                    data["age"] = int(m.group(1))
-
-            # NATIONALITY
-            if any(k in label for k in ["nationality", "citizenship", "nationalität", "nationalité", "staatsangehörigkeit"]):
-                nationality = val
-                nationality = re.sub(r"[\U0001F1E6-\U0001F1FF]", "", nationality)
-                nationality = re.sub(r"[\U0001F300-\U0001F9FF]", "", nationality)
-                nationality = nationality.split("\n")[0].split(",")[0].split("|")[0].strip()
-                nationality = " ".join(nationality.split()).strip('.,;:!?()[]{}')
-                if nationality:
-                    data["nationality"] = nationality
-
-            # POSITION
-            if any(k in label for k in ["position", "poste"]):
-                # Transfermarkt peut renvoyer "Left Winger" etc.
-                pos = val.strip()
-                pos = re.sub(r"\s+", " ", pos)
-                data["position_tm"] = pos
-                # Compatibilité avec le frontend actuel
-                data["position"] = pos
-
-            # HEIGHT
-            if any(k in label for k in ["height", "größe", "taille"]):
-                data["height"] = val.replace(",", ".").strip()
-
-        # ---- 2) Fallback: lecture via header items (si info-table absent) ----
-        if "age" not in data or "position" not in data or "height" not in data:
-            header_items = soup.select(".data-header__items li")
-            for li in header_items:
-                txt = li.get_text(" ", strip=True)
-                t = norm(txt)
-
-                # exemples possibles : "Age: 24", "Position: Right Winger", "Height: 1,71 m"
-                if "age" in t and "age" not in data:
-                    m = re.search(r"\b(\d{1,2})\b", txt)
+            # AGE (si JSON-LD absent)
+            if ("date of birth" in label) or ("geburtsdatum" in label) or ("date de naissance" in label):
+                # souvent: "Dec 20, 1998 (26)"
+                if "age" in label or "(" in content:
+                    m = re.search(r"\((\d+)\)", content)
                     if m:
                         data["age"] = int(m.group(1))
 
-                if "position" in t and "position" not in data:
-                    # prend ce qui suit ':'
-                    parts = txt.split(":")
-                    if len(parts) >= 2:
-                        pos = parts[1].strip()
-                        pos = re.sub(r"\s+", " ", pos)
-                        data["position_tm"] = pos
-                        data["position"] = pos
+            # NATIONALITY
+            if any(x in label for x in ["nationality", "nationalität", "nationalité", "citizenship", "staatsangehörigkeit"]):
+                nat = content
+                nat = re.sub(r"[\U0001F1E6-\U0001F1FF]", "", nat)  # flags
+                nat = re.sub(r"[\U0001F300-\U0001F9FF]", "", nat)  # emojis
+                nat = nat.split("\n")[0].split(",")[0].split("|")[0]
+                nat = _clean_text(nat.strip(".,;:!?()[]{}"))
+                if nat:
+                    data["nationality"] = nat
 
-                if "height" in t and "height" not in data:
-                    parts = txt.split(":")
-                    if len(parts) >= 2:
-                        data["height"] = parts[1].strip().replace(",", ".")
-        
-        # Méthode alternative: cherche la nationalité dans d'autres sections si pas trouvée
-        if 'nationality' not in data:
-            # Cherche dans les spans avec des classes de drapeaux ou de nationalité
-            nationality_spans = soup.select('span[title*="nationality"], span[title*="Nationalität"], .flaggenrahmen')
-            for span in nationality_spans:
-                title = span.get('title', '')
-                if title and ('nationality' in title.lower() or 'nationalität' in title.lower()):
-                    # Essaie d'extraire le nom du pays du title
-                    country_match = re.search(r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)', title)
-                    if country_match:
-                        data['nationality'] = country_match.group(1)
-                        print(f"-> Nationalité trouvée via title: {data['nationality']}")
-                        break
-        
-        # ⚠️ STATISTIQUES : Ne plus scraper depuis Transfermarkt (non fiable)
-        # Les stats sont maintenant récupérées depuis FBref via scrape_fbref_stats()
-        # Transfermarkt est utilisé uniquement pour le profil (nom, âge, club, valeur, etc.)
-        
-        # Valeurs par défaut pour les stats (seront remplacées par FBref si disponible)
-        data['appearances'] = 0
-        data['goals'] = 0
-        data['assists'] = 0
-        data['minutes_played'] = 0
-        
-        print(f"-> Profil Transfermarkt extrait (stats à récupérer via FBref)")
+            # POSITION
+            if any(x in label for x in ["position", "poste"]):
+                # Ex: "Centre-Forward" ou "Right-Back"
+                if content:
+                    pos = content.strip()
+                    pos = re.sub(r"\s+", " ", pos)
+                    data["position_tm"] = pos
+                    data["position"] = pos
 
-    except (requests.exceptions.RequestException, AttributeError, IndexError, TypeError) as e:
+            # HEIGHT
+            if any(x in label for x in ["height", "größe", "taille"]):
+                if content:
+                    data["height"] = content.replace(",", ".")
+
+        # --- 4) Stats "header" (souvent présent) ---
+        # Sur beaucoup de profils, TM affiche dans le header des stats du type Matches/Goals/Assists
+        # Ça évite tes regex/tableaux instables.
+        stats_container = soup.select_one(".data-header__stats-container")
+        if stats_container:
+            text = stats_container.get_text(" ", strip=True).lower()
+
+            # matches / goals / assists
+            # on cherche des nombres proches des mots clés
+            m_app = re.search(r"(matches|spiele|matchs|appearances)\s*(\d+)", text)
+            m_go  = re.search(r"(goals|tore|buts)\s*(\d+)", text)
+            m_as  = re.search(r"(assists|vorlagen|passes)\s*(\d+)", text)
+
+            if m_app and not data.get("appearances"):
+                data["appearances"] = int(m_app.group(2))
+            if m_go and not data.get("goals"):
+                data["goals"] = int(m_go.group(2))
+            if m_as and not data.get("assists"):
+                data["assists"] = int(m_as.group(2))
+
+        # Defaults
+        data.setdefault("appearances", 0)
+        data.setdefault("goals", 0)
+        data.setdefault("assists", 0)
+        data.setdefault("minutes_played", 0)
+
+        print(f"-> Profil TM: {data.get('name')} | age={data.get('age')} | pos={data.get('position')} | apps={data.get('appearances')} g={data.get('goals')} a={data.get('assists')}")
+
+    except Exception as e:
         print(f"Erreur scraping Transfermarkt ({url}): {e}")
+
     return data
 
 def _fbref_uncomment_tables(html: str) -> str:
