@@ -570,7 +570,9 @@ def save_player_to_db(player_data):
         # Initialise la DB locale
         init_db_local()
 
-        conn = sqlite3.connect(DB_PATH)
+        # S'assure que le répertoire existe
+        os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+        conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         cur = conn.cursor()
 
         # Vérifie les colonnes existantes
