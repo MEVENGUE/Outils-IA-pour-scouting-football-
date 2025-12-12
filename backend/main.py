@@ -36,7 +36,7 @@ app.add_middleware(
         "http://localhost:5173",  # Développement local
         "http://127.0.0.1:5173",  # Développement local
         "https://*.vercel.app",   # Tous les déploiements Vercel
-        # Ajoutez votre domaine Vercel spécifique ici si nécessaire
+        "https://scoutfootballai-siteweb.vercel.app",# Ajoutez votre domaine Vercel spécifique ici si nécessaire
         # "https://votre-app.vercel.app",
     ],
     allow_credentials=True,
