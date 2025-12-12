@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import type { Player } from '../App'
 import './AIScoutingAssistant.css'
 
+// Utilise la variable d'environnement VITE_API_URL en production, ou localhost en développement
+const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
 
 interface AIScoutingAssistantProps {
   player: Player | null
@@ -23,7 +25,10 @@ export default function AIScoutingAssistant({ player, onPlayerRequest, loading }
         image_url: player.image_url || null,
         goals: player.goals || 0,
         assists: player.assists || 0,
-        appearances: player.appearances || 0
+        appearances: player.appearances || 0,
+        age: player.age || null,
+        position: player.position || null,
+        height: player.height || null
       }
       
       // Ajoute les champs optionnels seulement s'ils existent
