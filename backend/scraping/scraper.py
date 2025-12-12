@@ -1,4 +1,3 @@
-
 # Filename: scraping/scraper.py
 # Description: Script de scraping amélioré pour collecter les données des joueurs à la demande avec enrichissement OpenAI.
 
@@ -338,8 +337,14 @@ def scrape_transfermarkt(url):
                     data['nationality'] = nationality
                     print(f"-> Nationalité trouvée: {nationality}")
             
-            if "Position" in label or "Position" in label or "Poste" in label:
-                data['position'] = content.strip()
+            # Poste (Transfermarkt) - robuste
+            if any(k in label.lower() for k in ["position", "poste"]):
+                pos = content.strip()
+                # Nettoyage : enlève les espaces multiples
+                pos = re.sub(r"\s+", " ", pos)
+                data["position_tm"] = pos
+                # Compatibilité avec le frontend actuel
+                data["position"] = pos
             if "Height" in label or "Größe" in label or "Taille" in label:
                 data['height'] = content.replace(',', '.').strip()
         
@@ -357,197 +362,153 @@ def scrape_transfermarkt(url):
                         print(f"-> Nationalité trouvée via title: {data['nationality']}")
                         break
         
-        # Statistiques de performance - méthode améliorée et robuste
-        # Méthode 1: Cherche dans les tableaux de performance avec sélecteurs spécifiques
-        # Transfermarkt utilise souvent des tableaux avec des classes spécifiques
-        stats_tables = soup.select('table.items, table.data-table, .grid-view, .responsive-table, table[class*="items"], div[class*="table"] table')
+        # ⚠️ STATISTIQUES : Ne plus scraper depuis Transfermarkt (non fiable)
+        # Les stats sont maintenant récupérées depuis FBref via scrape_fbref_stats()
+        # Transfermarkt est utilisé uniquement pour le profil (nom, âge, club, valeur, etc.)
         
-        # Cherche aussi dans les sections de statistiques détaillées
-        stats_sections = soup.select('.data-content, .performance-data, [data-view="statistics"], .player-stats, .season-stats, div[class*="stats"]')
+        # Valeurs par défaut pour les stats (seront remplacées par FBref si disponible)
+        data['appearances'] = 0
+        data['goals'] = 0
+        data['assists'] = 0
+        data['minutes_played'] = 0
         
-        for table in stats_tables:
-            # Cherche les en-têtes pour identifier les colonnes
-            headers = []
-            # Cherche dans thead d'abord
-            thead = table.select_one('thead')
-            if thead:
-                header_rows = thead.select('tr')
-            else:
-                # Sinon cherche dans les premières lignes
-                header_rows = table.select('tr.header, tr.odd, tr.even, tr:first-child')
-            
-            for header_row in header_rows[:2]:  # Prend les 2 premières lignes d'en-tête
-                header_cells = header_row.select('th, td')
-                if header_cells:
-                    headers = [cell.get_text(strip=True).lower() for cell in header_cells]
-                    if headers and any(term in ' '.join(headers) for term in ['spiele', 'matches', 'appearances', 'matchs', 'goals', 'tore', 'assists', 'vorlagen']):
-                        break
-            
-            # Cherche dans les lignes de données (saison en cours généralement en premier)
-            tbody = table.select_one('tbody')
-            if tbody:
-                data_rows = tbody.select('tr')
-            else:
-                data_rows = table.select('tr:not(.header):not(.odd):not(.even)')
-            
-            for row in data_rows[:5]:  # Prend les 5 premières lignes (saisons récentes)
-                cells = row.select('td')
-                if len(cells) >= 3:
-                    try:
-                        for i, cell in enumerate(cells):
-                            cell_text = cell.get_text(strip=True)
-                            # Nettoie le texte mais garde les nombres avec décimales
-                            clean_text = re.sub(r'[^\d.]', '', cell_text) if cell_text else ''
-                            
-                            if clean_text and clean_text.replace('.', '').isdigit():
-                                try:
-                                    num = int(float(clean_text))
-                                except:
-                                    continue
-                                
-                                # Identifie le type selon l'en-tête
-                                if i < len(headers) and headers:
-                                    header = headers[i]
-                                    if any(term in header for term in ['spiele', 'matches', 'appearances', 'matchs', 'jeux', 'partidos', 'g', 'gp', 'games']):
-                                        if not data.get('appearances') or data.get('appearances') == 0:
-                                            data['appearances'] = num
-                                    elif any(term in header for term in ['tore', 'goals', 'buts', 'gols', 'g', 'goals', 't']):
-                                        if not data.get('goals') or data.get('goals') == 0:
-                                            data['goals'] = num
-                                    elif any(term in header for term in ['vorlagen', 'assists', 'passes', 'assistances', 'a', 'as', 'ass']):
-                                        if not data.get('assists') or data.get('assists') == 0:
-                                            data['assists'] = num
-                                else:
-                                    # Devine selon la position si pas d'en-tête (mais seulement si raisonnable)
-                                    if i == 0 and not data.get('appearances') and 0 < num < 100:
-                                        data['appearances'] = num
-                                    elif i == 1 and not data.get('goals') and 0 < num < 200:
-                                        data['goals'] = num
-                                    elif i == 2 and not data.get('assists') and 0 < num < 100:
-                                        data['assists'] = num
-                    except (ValueError, IndexError, AttributeError) as e:
-                        continue
-        
-        # Méthode 2: Cherche dans les sections de performance avec sélecteurs spécifiques
-        # Cherche aussi dans les divs avec des attributs data ou des classes spécifiques
-        performance_selectors = [
-            '.data-content',
-            '.performance-data',
-            '.stats',
-            '[data-view="statistics"]',
-            '.player-stats',
-            '.season-stats',
-            'div[class*="performance"]',
-            'div[class*="statistic"]',
-            'section[class*="stats"]'
-        ]
-        
-        for selector in performance_selectors:
-            sections = soup.select(selector)
-            for section in sections:
-                text = section.get_text()
-                # Patterns améliorés pour trouver les statistiques (plus précis)
-                goals_patterns = [
-                    r'(\d+)\s*(?:goals?|buts?|tore|gols?)\b',
-                    r'\bgoals?[:\s]+(\d+)',
-                    r'\bbuts?[:\s]+(\d+)',
-                    r'\btore[:\s]+(\d+)',
-                    r'(\d+)\s*/\s*\d+\s*(?:goals?|buts?)'  # Format "10/20 goals"
-                ]
-                assists_patterns = [
-                    r'(\d+)\s*(?:assists?|passes?\s*décisives?|vorlagen|asistencias?)\b',
-                    r'\bassists?[:\s]+(\d+)',
-                    r'\bpasses?\s*décisives?[:\s]+(\d+)',
-                    r'\bvorlagen[:\s]+(\d+)',
-                    r'(\d+)\s*/\s*\d+\s*(?:assists?|passes?)'  # Format "5/10 assists"
-                ]
-                appearances_patterns = [
-                    r'(\d+)\s*(?:appearances?|matches?|matchs?|spiele|jeux|partidos?)\b',
-                    r'\bappearances?[:\s]+(\d+)',
-                    r'\bmatches?[:\s]+(\d+)',
-                    r'\bspiele[:\s]+(\d+)',
-                    r'(\d+)\s*/\s*\d+\s*(?:matches?|appearances?)'  # Format "20/30 matches"
-                ]
-                
-                for pattern in goals_patterns:
-                    match = re.search(pattern, text, re.IGNORECASE)
-                    if match and (not data.get('goals') or data.get('goals') == 0):
-                        try:
-                            goal_value = int(match.group(1))
-                            if 0 <= goal_value <= 200:  # Validation raisonnable
-                                data['goals'] = goal_value
-                                break
-                        except:
-                            continue
-                
-                for pattern in assists_patterns:
-                    match = re.search(pattern, text, re.IGNORECASE)
-                    if match and (not data.get('assists') or data.get('assists') == 0):
-                        try:
-                            assist_value = int(match.group(1))
-                            if 0 <= assist_value <= 100:  # Validation raisonnable
-                                data['assists'] = assist_value
-                                break
-                        except:
-                            continue
-                
-                for pattern in appearances_patterns:
-                    match = re.search(pattern, text, re.IGNORECASE)
-                    if match and (not data.get('appearances') or data.get('appearances') == 0):
-                        try:
-                            appearance_value = int(match.group(1))
-                            if 0 <= appearance_value <= 100:  # Validation raisonnable
-                                data['appearances'] = appearance_value
-                                break
-                        except:
-                            continue
-        
-        # Méthode 3: Cherche dans les divs de statistiques en ligne et les spans
-        stat_divs = soup.select('.stat, .statistic, [class*="stat"], span[class*="stat"], div[class*="value"]')
-        for div in stat_divs:
-            text = div.get_text()
-            # Cherche des patterns comme "Goals: 10" ou "10 Goals" mais plus précis
-            if ('goal' in text.lower() or 'but' in text.lower() or 'tore' in text.lower()) and ('goal' not in text.lower()[:10] or ':' in text or '=' in text):
-                num_match = re.search(r'\b(\d+)\b', text)
-                if num_match and (not data.get('goals') or data.get('goals') == 0):
-                    try:
-                        goal_value = int(num_match.group(1))
-                        if 0 <= goal_value <= 200:
-                            data['goals'] = goal_value
-                    except:
-                        pass
-            if ('assist' in text.lower() or 'passe' in text.lower() or 'vorlage' in text.lower()) and ('assist' not in text.lower()[:10] or ':' in text or '=' in text):
-                num_match = re.search(r'\b(\d+)\b', text)
-                if num_match and (not data.get('assists') or data.get('assists') == 0):
-                    try:
-                        assist_value = int(num_match.group(1))
-                        if 0 <= assist_value <= 100:
-                            data['assists'] = assist_value
-                    except:
-                        pass
-            if ('match' in text.lower() or 'spiel' in text.lower() or 'appearance' in text.lower() or 'jeu' in text.lower()) and ('match' not in text.lower()[:10] or ':' in text or '=' in text):
-                num_match = re.search(r'\b(\d+)\b', text)
-                if num_match and (not data.get('appearances') or data.get('appearances') == 0):
-                    try:
-                        appearance_value = int(num_match.group(1))
-                        if 0 <= appearance_value <= 100:
-                            data['appearances'] = appearance_value
-                    except:
-                        pass
-        
-        # Valeurs par défaut si pas trouvées
-        if 'appearances' not in data:
-            data['appearances'] = 0
-        if 'goals' not in data:
-            data['goals'] = 0
-        if 'assists' not in data:
-            data['assists'] = 0
-        
-        print(f"-> Statistiques extraites: {data.get('appearances')} matchs, {data.get('goals')} buts, {data.get('assists')} passes")
+        print(f"-> Profil Transfermarkt extrait (stats à récupérer via FBref)")
 
     except (requests.exceptions.RequestException, AttributeError, IndexError, TypeError) as e:
         print(f"Erreur scraping Transfermarkt ({url}): {e}")
     return data
+
+def scrape_fbref_stats(player_name, season="2024-2025"):
+    """
+    Récupère les stats standard FBref pour un joueur donné.
+    Utilise l'API publique FBref via scraping direct.
+    
+    Args:
+        player_name: Nom du joueur à rechercher
+        season: Saison à rechercher (format "2024-2025")
+    
+    Returns:
+        dict: Dictionnaire avec les stats (goals, assists, appearances, minutes_played)
+    """
+    import unicodedata
+    import difflib
+    
+    # Normalisation des noms (enlève accents, caractères spéciaux)
+    def normalize_name(name):
+        """Normalise un nom pour la comparaison"""
+        # Enlève les accents
+        name = unicodedata.normalize('NFD', name.lower())
+        name = ''.join(c for c in name if unicodedata.category(c) != 'Mn')
+        # Enlève caractères spéciaux
+        name = re.sub(r'[^\w\s]', '', name)
+        return name.strip()
+    
+    try:
+        # Liste des ligues majeures à chercher
+        leagues = {
+            'Premier League': '9',
+            'La Liga': '12',
+            'Bundesliga': '20',
+            'Serie A': '11',
+            'Ligue 1': '13',
+        }
+        
+        target_normalized = normalize_name(player_name)
+        best_match = None
+        best_stats = {}
+        
+        # Cherche dans chaque ligue
+        for league_name, league_id in leagues.items():
+            try:
+                # URL de recherche FBref pour la ligue
+                search_url = f"https://fbref.com/en/comps/{league_id}/{season}/stats/{season}-{league_name}-Stats"
+                
+                resp = requests.get(search_url, headers=HEADERS, timeout=10)
+                if resp.status_code != 200:
+                    continue
+                
+                soup = BeautifulSoup(resp.text, 'html.parser')
+                
+                # Cherche le tableau de stats des joueurs
+                stats_table = soup.select_one('table#stats_standard')
+                if not stats_table:
+                    continue
+                
+                # Parcourt les lignes du tableau
+                rows = stats_table.select('tbody tr')
+                for row in rows:
+                    # Ignore les lignes d'en-tête
+                    if 'thead' in str(row.get('class', [])):
+                        continue
+                    
+                    # Récupère le nom du joueur
+                    player_cell = row.select_one('th[data-stat="player"] a, td[data-stat="player"] a')
+                    if not player_cell:
+                        continue
+                    
+                    player_name_found = player_cell.get_text(strip=True)
+                    player_name_normalized = normalize_name(player_name_found)
+                    
+                    # Compare avec le nom recherché
+                    similarity = difflib.SequenceMatcher(None, target_normalized, player_name_normalized).ratio()
+                    
+                    if similarity >= 0.85:  # Seuil de similarité
+                        # Récupère les stats
+                        try:
+                            goals_cell = row.select_one('td[data-stat="goals"]')
+                            assists_cell = row.select_one('td[data-stat="assists"]')
+                            minutes_cell = row.select_one('td[data-stat="minutes"]')
+                            games_cell = row.select_one('td[data-stat="games"]')
+                            
+                            # Récupère la position FBref
+                            pos_cell = row.select_one('td[data-stat="position"], td[data-stat="pos"]')
+                            position_fbref = None
+                            if pos_cell:
+                                position_fbref = pos_cell.get_text(strip=True)
+                            
+                            goals = int(goals_cell.get_text(strip=True) or 0) if goals_cell else 0
+                            assists = int(assists_cell.get_text(strip=True) or 0) if assists_cell else 0
+                            minutes = int(minutes_cell.get_text(strip=True).replace(',', '') or 0) if minutes_cell else 0
+                            games = int(games_cell.get_text(strip=True) or 0) if games_cell else 0
+                            
+                            # Calcule appearances (matchs joués, pas seulement matchs dans le 11)
+                            appearances = games  # FBref "games" = matchs joués
+                            
+                            stats = {
+                                'goals': goals,
+                                'assists': assists,
+                                'appearances': appearances,
+                                'minutes_played': minutes
+                            }
+                            
+                            # Ajoute la position FBref si disponible
+                            if position_fbref and position_fbref.lower() != 'nan' and position_fbref.strip():
+                                stats['position_fbref'] = position_fbref.strip()
+                            
+                            # Garde le meilleur match (plus de minutes = plus actif)
+                            if minutes > best_stats.get('minutes_played', 0):
+                                best_match = player_name_found
+                                best_stats = stats
+                                
+                        except (ValueError, AttributeError) as e:
+                            continue
+                
+            except requests.exceptions.RequestException:
+                continue
+            except Exception as e:
+                print(f"-> Erreur lors de la recherche FBref dans {league_name}: {e}")
+                continue
+        
+        if best_stats:
+            print(f"-> Stats FBref trouvées pour {best_match}: {best_stats.get('goals')} buts, {best_stats.get('assists')} passes, {best_stats.get('appearances')} matchs")
+            return best_stats
+        else:
+            print(f"-> Aucune stat FBref trouvée pour {player_name}")
+            return {}
+            
+    except Exception as e:
+        print(f"-> Erreur générale lors du scraping FBref: {e}")
+        return {}
 
 def scrape_wikipedia_image(player_name):
     """Scrape l'image du joueur depuis Wikipedia avec plusieurs tentatives."""
@@ -671,7 +632,7 @@ def scrape_and_save_player_data(player_name):
 
         all_data = {'name': normalized_name, 'source_transfermarkt': tm_url}
 
-        # Scrap Transfermarkt
+        # Scrap Transfermarkt (profil uniquement - pas de stats)
         try:
             tm_data = scrape_transfermarkt(tm_url)
             if tm_data:
@@ -680,6 +641,30 @@ def scrape_and_save_player_data(player_name):
             print(f"-> Erreur scraping Transfermarkt: {e}")
 
         precise_name = all_data.get('name', player_name)
+        
+        # Scrap FBref pour les stats (source fiable)
+        try:
+            fbref_stats = scrape_fbref_stats(precise_name)
+            if fbref_stats:
+                all_data.update(fbref_stats)
+                print(f"-> Stats FBref intégrées pour {precise_name}")
+        except Exception as e:
+            print(f"-> Erreur scraping FBref: {e}")
+        
+        # Fusion des positions : priorité à Transfermarkt (plus précis)
+        if all_data.get("position_tm"):
+            all_data["position"] = all_data["position_tm"]
+        elif all_data.get("position_fbref"):
+            all_data["position"] = all_data["position_fbref"]
+        
+        # Log des positions trouvées
+        if all_data.get("position_tm") or all_data.get("position_fbref"):
+            positions_info = []
+            if all_data.get("position_tm"):
+                positions_info.append(f"TM: {all_data['position_tm']}")
+            if all_data.get("position_fbref"):
+                positions_info.append(f"FBref: {all_data['position_fbref']}")
+            print(f"-> Positions trouvées: {', '.join(positions_info)}")
 
         # Image Wikipedia
         try:
