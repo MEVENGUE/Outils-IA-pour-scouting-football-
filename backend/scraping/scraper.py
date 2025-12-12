@@ -11,6 +11,8 @@ import sys
 
 # Configuration de la base de données SQLite
 # Utilise maintenant le module centralisé depuis backend
+# Le DB_PATH local n'est utilisé que si le module centralisé n'est pas disponible
+# En production, le module centralisé gère le chemin correct (/app/data)
 DB_PATH = os.path.join(os.path.dirname(__file__), "players.db")
 
 # Import du module de base de données centralisé
@@ -380,137 +382,190 @@ def scrape_transfermarkt(url):
         print(f"Erreur scraping Transfermarkt ({url}): {e}")
     return data
 
-def scrape_fbref_stats(player_name, season="2024-2025"):
+def _fbref_uncomment_tables(html: str) -> str:
+    """FBref met parfois des tables dans des commentaires HTML <!-- ... -->"""
+    return re.sub(r"<!--|-->", "", html)
+
+def _normalize_name_basic(s: str) -> str:
+    """Normalise un nom pour la comparaison (enlève accents, caractères spéciaux)"""
+    import unicodedata
+    s = unicodedata.normalize("NFD", s.lower())
+    s = "".join(ch for ch in s if unicodedata.category(ch) != "Mn")
+    s = re.sub(r"[^\w\s]", " ", s)
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
+
+def fbref_search_player_urls(player_name: str, limit: int = 8) -> list:
     """
-    Récupère les stats standard FBref pour un joueur donné.
-    Utilise l'API publique FBref via scraping direct.
+    Retourne une liste de candidats FBref (nom + url) via la recherche globale FBref.
+    """
+    try:
+        q = requests.utils.quote(player_name)
+        url = f"https://fbref.com/en/search/search.fcgi?search={q}"
+        resp = requests.get(url, headers=HEADERS, timeout=12)
+        if resp.status_code != 200:
+            return []
+
+        html = _fbref_uncomment_tables(resp.text)
+        soup = BeautifulSoup(html, "html.parser")
+
+        results = []
+        # Sur FBref, les résultats pertinents sont souvent dans item "Players"
+        for a in soup.select('div.search-item-name a[href^="/en/players/"]'):
+            name = a.get_text(strip=True)
+            href = a.get("href")
+            if not href:
+                continue
+            results.append({
+                "name": name,
+                "url": "https://fbref.com" + href
+            })
+            if len(results) >= limit:
+                break
+
+        # fallback si structure HTML différente
+        if not results:
+            for a in soup.select('a[href^="/en/players/"]'):
+                name = a.get_text(strip=True)
+                href = a.get("href")
+                if name and href:
+                    results.append({"name": name, "url": "https://fbref.com" + href})
+                if len(results) >= limit:
+                    break
+
+        return results
+    except Exception as e:
+        print(f"-> Erreur recherche FBref pour {player_name}: {e}")
+        return []
+
+def scrape_fbref_stats(player_name: str, season: str = "2024-2025", tm_club: str = None) -> dict:
+    """
+    Version robuste qui recherche le joueur via la recherche globale FBref.
+    1) Recherche le joueur sur FBref
+    2) Ouvre la page joueur
+    3) Prend les stats "Standard" de la saison demandée, sinon la ligne la plus récente (max minutes)
     
     Args:
         player_name: Nom du joueur à rechercher
         season: Saison à rechercher (format "2024-2025")
+        tm_club: Club du joueur depuis Transfermarkt (pour mieux matcher en cas d'ambiguïté)
     
     Returns:
-        dict: Dictionnaire avec les stats (goals, assists, appearances, minutes_played)
+        dict: Dictionnaire avec les stats (goals, assists, appearances, minutes_played, position_fbref)
     """
-    import unicodedata
-    import difflib
-    
-    # Normalisation des noms (enlève accents, caractères spéciaux)
-    def normalize_name(name):
-        """Normalise un nom pour la comparaison"""
-        # Enlève les accents
-        name = unicodedata.normalize('NFD', name.lower())
-        name = ''.join(c for c in name if unicodedata.category(c) != 'Mn')
-        # Enlève caractères spéciaux
-        name = re.sub(r'[^\w\s]', '', name)
-        return name.strip()
-    
-    try:
-        # Liste des ligues majeures à chercher
-        leagues = {
-            'Premier League': '9',
-            'La Liga': '12',
-            'Bundesliga': '20',
-            'Serie A': '11',
-            'Ligue 1': '13',
-        }
-        
-        target_normalized = normalize_name(player_name)
-        best_match = None
-        best_stats = {}
-        
-        # Cherche dans chaque ligue
-        for league_name, league_id in leagues.items():
-            try:
-                # URL de recherche FBref pour la ligue
-                search_url = f"https://fbref.com/en/comps/{league_id}/{season}/stats/{season}-{league_name}-Stats"
-                
-                resp = requests.get(search_url, headers=HEADERS, timeout=10)
-                if resp.status_code != 200:
-                    continue
-                
-                soup = BeautifulSoup(resp.text, 'html.parser')
-                
-                # Cherche le tableau de stats des joueurs
-                stats_table = soup.select_one('table#stats_standard')
-                if not stats_table:
-                    continue
-                
-                # Parcourt les lignes du tableau
-                rows = stats_table.select('tbody tr')
-                for row in rows:
-                    # Ignore les lignes d'en-tête
-                    if 'thead' in str(row.get('class', [])):
-                        continue
-                    
-                    # Récupère le nom du joueur
-                    player_cell = row.select_one('th[data-stat="player"] a, td[data-stat="player"] a')
-                    if not player_cell:
-                        continue
-                    
-                    player_name_found = player_cell.get_text(strip=True)
-                    player_name_normalized = normalize_name(player_name_found)
-                    
-                    # Compare avec le nom recherché
-                    similarity = difflib.SequenceMatcher(None, target_normalized, player_name_normalized).ratio()
-                    
-                    if similarity >= 0.85:  # Seuil de similarité
-                        # Récupère les stats
-                        try:
-                            goals_cell = row.select_one('td[data-stat="goals"]')
-                            assists_cell = row.select_one('td[data-stat="assists"]')
-                            minutes_cell = row.select_one('td[data-stat="minutes"]')
-                            games_cell = row.select_one('td[data-stat="games"]')
-                            
-                            # Récupère la position FBref
-                            pos_cell = row.select_one('td[data-stat="position"], td[data-stat="pos"]')
-                            position_fbref = None
-                            if pos_cell:
-                                position_fbref = pos_cell.get_text(strip=True)
-                            
-                            goals = int(goals_cell.get_text(strip=True) or 0) if goals_cell else 0
-                            assists = int(assists_cell.get_text(strip=True) or 0) if assists_cell else 0
-                            minutes = int(minutes_cell.get_text(strip=True).replace(',', '') or 0) if minutes_cell else 0
-                            games = int(games_cell.get_text(strip=True) or 0) if games_cell else 0
-                            
-                            # Calcule appearances (matchs joués, pas seulement matchs dans le 11)
-                            appearances = games  # FBref "games" = matchs joués
-                            
-                            stats = {
-                                'goals': goals,
-                                'assists': assists,
-                                'appearances': appearances,
-                                'minutes_played': minutes
-                            }
-                            
-                            # Ajoute la position FBref si disponible
-                            if position_fbref and position_fbref.lower() != 'nan' and position_fbref.strip():
-                                stats['position_fbref'] = position_fbref.strip()
-                            
-                            # Garde le meilleur match (plus de minutes = plus actif)
-                            if minutes > best_stats.get('minutes_played', 0):
-                                best_match = player_name_found
-                                best_stats = stats
-                                
-                        except (ValueError, AttributeError) as e:
-                            continue
-                
-            except requests.exceptions.RequestException:
-                continue
-            except Exception as e:
-                print(f"-> Erreur lors de la recherche FBref dans {league_name}: {e}")
-                continue
-        
-        if best_stats:
-            print(f"-> Stats FBref trouvées pour {best_match}: {best_stats.get('goals')} buts, {best_stats.get('assists')} passes, {best_stats.get('appearances')} matchs")
-            return best_stats
-        else:
-            print(f"-> Aucune stat FBref trouvée pour {player_name}")
-            return {}
-            
-    except Exception as e:
-        print(f"-> Erreur générale lors du scraping FBref: {e}")
+    target = _normalize_name_basic(player_name)
+    candidates = fbref_search_player_urls(player_name)
+
+    if not candidates:
+        print(f"-> FBref: aucun résultat de recherche pour {player_name}")
         return {}
+
+    # Scoring simple (nom proche + bonus si club TM trouvé dans la page)
+    def score_candidate(c):
+        cand_norm = _normalize_name_basic(c["name"])
+        base = 1.0 if cand_norm == target else 0.0
+        # similarité grossière
+        import difflib
+        base = max(base, difflib.SequenceMatcher(None, target, cand_norm).ratio())
+        return base
+
+    candidates = sorted(candidates, key=score_candidate, reverse=True)[:5]
+
+    best = {}
+    best_minutes = -1
+
+    for c in candidates:
+        try:
+            r = requests.get(c["url"], headers=HEADERS, timeout=12)
+            if r.status_code != 200:
+                continue
+            html = _fbref_uncomment_tables(r.text)
+            soup = BeautifulSoup(html, "html.parser")
+
+            # Bonus: si tm_club fourni, on essaie de vérifier que le club apparaît quelque part
+            club_bonus = 0.0
+            if tm_club:
+                page_text = soup.get_text(" ", strip=True).lower()
+                if tm_club.lower() in page_text:
+                    club_bonus = 0.15
+
+            # Table standard par saison/compétition (id fréquent sur pages joueurs)
+            table = soup.select_one("table#stats_standard_dom_lg") or soup.select_one("table#stats_standard")
+            if not table:
+                continue
+
+            rows = table.select("tbody tr")
+            # On cherche la meilleure ligne:
+            # - si saison == season, on la privilégie
+            # - sinon on prend max minutes
+            for row in rows:
+                # ignore separators
+                if "class" in row.attrs and "thead" in str(row.get("class", [])):
+                    continue
+
+                season_cell = row.select_one('th[data-stat="season"]')
+                season_txt = season_cell.get_text(strip=True) if season_cell else ""
+
+                mins_cell = row.select_one('td[data-stat="minutes"]')
+                goals_cell = row.select_one('td[data-stat="goals"]')
+                ast_cell = row.select_one('td[data-stat="assists"]')
+                games_cell = row.select_one('td[data-stat="games"]')
+
+                # position (souvent "position" ou "pos")
+                pos_cell = row.select_one('td[data-stat="position"], td[data-stat="pos"]')
+
+                def to_int(x):
+                    if not x:
+                        return 0
+                    t = x.get_text(strip=True).replace(",", "")
+                    return int(t) if t.isdigit() else 0
+
+                minutes = to_int(mins_cell)
+                goals = to_int(goals_cell)
+                assists = to_int(ast_cell)
+                games = to_int(games_cell)
+
+                # Sélection
+                is_target_season = (season_txt == season)
+                candidate_minutes_key = minutes + int(1000 * club_bonus)  # bonus si club match
+
+                if is_target_season and candidate_minutes_key > best_minutes:
+                    best_minutes = candidate_minutes_key
+                    best = {
+                        "goals": goals,
+                        "assists": assists,
+                        "appearances": games,
+                        "minutes_played": minutes,
+                    }
+                    if pos_cell:
+                        pos = pos_cell.get_text(strip=True)
+                        if pos and pos.lower() != 'nan':
+                            best["position_fbref"] = pos.strip()
+
+                # fallback: si on ne trouve pas la saison, max minutes
+                if not is_target_season and candidate_minutes_key > best_minutes and not best:
+                    best_minutes = candidate_minutes_key
+                    best = {
+                        "goals": goals,
+                        "assists": assists,
+                        "appearances": games,
+                        "minutes_played": minutes,
+                    }
+                    if pos_cell:
+                        pos = pos_cell.get_text(strip=True)
+                        if pos and pos.lower() != 'nan':
+                            best["position_fbref"] = pos.strip()
+
+            if best:
+                print(f"-> FBref OK ({c['name']}): {best.get('goals',0)}G {best.get('assists',0)}A {best.get('appearances',0)}MJ")
+                return best
+
+        except Exception as e:
+            print(f"-> Erreur lors du scraping FBref pour {c.get('name', 'unknown')}: {e}")
+            continue
+
+    print(f"-> Aucune stat FBref trouvée pour {player_name}")
+    return {}
 
 def scrape_wikipedia_image(player_name):
     """Scrape l'image du joueur depuis Wikipedia avec plusieurs tentatives."""
@@ -647,8 +702,13 @@ def scrape_and_save_player_data(player_name):
         precise_name = all_data.get('name', player_name)
         
         # Scrap FBref pour les stats (source fiable)
+        # Passe le club TM pour mieux matcher en cas d'ambiguïté (ex: "Danilo")
         try:
-            fbref_stats = scrape_fbref_stats(precise_name)
+            fbref_stats = scrape_fbref_stats(
+                precise_name,
+                season="2024-2025",
+                tm_club=all_data.get("current_club")
+            )
             if fbref_stats:
                 all_data.update(fbref_stats)
                 print(f"-> Stats FBref intégrées pour {precise_name}")
