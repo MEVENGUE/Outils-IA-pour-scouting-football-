@@ -873,11 +873,11 @@ def save_player_to_db(player_data):
         # S'assure que le répertoire existe
         os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
         conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-    cur = conn.cursor()
+        cur = conn.cursor()
 
         # Vérifie les colonnes existantes
-    cur.execute("PRAGMA table_info(players)")
-    table_columns = {row[1] for row in cur.fetchall()}
+        cur.execute("PRAGMA table_info(players)")
+        table_columns = {row[1] for row in cur.fetchall()}
     
         # Filtrage des données valides
         valid_data = {k: v for k, v in player_data.items() if k in table_columns and v is not None}
