@@ -625,133 +625,158 @@ def scrape_fbref_stats(player_name: str, season: str = "2024-2025", tm_club: str
     print(f"-> Aucune stat FBref trouvée pour {player_name}")
     return {}
 
-# ========== FBREF SCRAPING (Stats saison courante) - Version pandas ==========
-
-FBREF_SEARCH = "https://fbref.com/en/search/search.fcgi?search={query}"
+# ========== FBREF SCRAPING (Stats saison courante) ==========
 FBREF_BASE = "https://fbref.com"
+FBREF_SEARCH = "https://fbref.com/en/search/search.fcgi?search={q}"
 
-def fbref_search_player_url(player_name: str) -> str | None:
+def _fbref_uncomment(html: str) -> str:
+    # FBref met énormément de tables dans <!-- ... -->
+    return re.sub(r"<!--|-->", "", html)
+
+def fbref_search_candidates(player_name: str, limit: int = 8) -> list[dict]:
     q = quote(player_name.strip())
-    url = FBREF_SEARCH.format(query=q)
+    url = FBREF_SEARCH.format(q=q)
     r = requests.get(url, headers=HEADERS, timeout=12)
     if r.status_code != 200:
-        return None
-    soup = BeautifulSoup(r.text, "html.parser")
-    a = soup.select_one('div.search-item-name a[href^="/en/players/"]') or soup.select_one('a[href^="/en/players/"]')
-    if a and a.get("href"):
-        return FBREF_BASE + a["href"]
-    return None
+        return []
+    soup = BeautifulSoup(_fbref_uncomment(r.text), "html.parser")
 
-def _extract_table_html_from_comments(page_html: str, table_id: str) -> str | None:
-    if f'id="{table_id}"' in page_html:
-        return page_html
-    comments = re.findall(r"<!--(.*?)-->", page_html, flags=re.DOTALL)
-    for c in comments:
-        if f'id="{table_id}"' in c:
-            return c
-    return None
+    out = []
+    for a in soup.select('div.search-item-name a[href^="/en/players/"]'):
+        href = a.get("href")
+        name = a.get_text(strip=True)
+        if href and name:
+            out.append({"name": name, "url": FBREF_BASE + href})
+            if len(out) >= limit:
+                break
 
-def fbref_get_standard_stats(player_fbref_url: str, season: str | None = None) -> dict | None:
-    try:
-        import pandas as pd
-    except ImportError:
-        print("-> pandas non disponible, utilisation méthode alternative FBref")
-        return None
-    
-    r = requests.get(player_fbref_url, headers=HEADERS, timeout=12)
+    # fallback
+    if not out:
+        for a in soup.select('a[href^="/en/players/"]'):
+            href = a.get("href")
+            name = a.get_text(strip=True)
+            if href and name:
+                out.append({"name": name, "url": FBREF_BASE + href})
+                if len(out) >= limit:
+                    break
+
+    return out
+
+def fbref_scrape_standard(player_url: str, season: str | None = None, club_hint: str | None = None) -> dict | None:
+    r = requests.get(player_url, headers=HEADERS, timeout=12)
     if r.status_code != 200:
         return None
+    soup = BeautifulSoup(_fbref_uncomment(r.text), "html.parser")
 
-    html = r.text
-    table_ids = ["stats_standard_dom_lg", "stats_standard_combined", "stats_standard"]
-
-    chosen_html = None
-    chosen_id = None
-    for tid in table_ids:
-        block = _extract_table_html_from_comments(html, tid)
-        if block:
-            chosen_html = block
-            chosen_id = tid
-            break
-    if not chosen_html:
+    table = soup.select_one("table#stats_standard_dom_lg") or soup.select_one("table#stats_standard")
+    if not table:
         return None
 
-    try:
-        tables = pd.read_html(chosen_html)
-        target = None
-        for t in tables:
-            cols = [str(c).lower() for c in t.columns]
-            if any("season" in c for c in cols) and any("gls" in c for c in cols) and any("ast" in c for c in cols):
-                target = t
-                break
-        if target is None:
-            return None
+    rows = table.select("tbody tr")
+    best = None
+    best_score = -1
 
-        df = target.copy()
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = [c[-1] if c[-1] else c[0] for c in df.columns]
+    for row in rows:
+        # skip separators
+        if "class" in row.attrs and "thead" in row.get("class", []):
+            continue
 
-        # garder saisons "YYYY-YYYY"
-        df = df[df["Season"].astype(str).str.contains(r"\d{4}-\d{4}", regex=True, na=False)]
-        if df.empty:
-            return None
+        season_txt = row.select_one('th[data-stat="season"]')
+        season_txt = season_txt.get_text(strip=True) if season_txt else ""
 
-        if season:
-            df2 = df[df["Season"].astype(str).str.strip() == season]
-            if df2.empty:
-                df2 = df
-        else:
-            df2 = df
+        mp = row.select_one('td[data-stat="games"]') or row.select_one('td[data-stat="mp"]')
+        gls = row.select_one('td[data-stat="goals"]') or row.select_one('td[data-stat="gls"]')
+        ast = row.select_one('td[data-stat="assists"]') or row.select_one('td[data-stat="ast"]')
+        mins = row.select_one('td[data-stat="minutes"]') or row.select_one('td[data-stat="min"]')
+        squad = row.select_one('td[data-stat="squad"]')
 
-        df2 = df2.sort_values(by="Season", ascending=False)
-        row = df2.iloc[0]
-
-        def geti(x):
-            try:
-                if pd.isna(x): return 0
-                return int(float(str(x).replace(",", "").strip()))
-            except Exception:
+        def to_int(cell):
+            if not cell:
                 return 0
+            t = cell.get_text(strip=True).replace(",", "")
+            return int(t) if t.isdigit() else 0
 
-        out = {
-            "fbref_url": player_fbref_url,
-            "fbref_table_used": chosen_id,
-            "fbref_season": str(row.get("Season")),
-            "appearances": geti(row.get("MP")),
-            "goals": geti(row.get("Gls")),
-            "assists": geti(row.get("Ast")),
-            "minutes_played": geti(row.get("Min")),
-        }
-        return out
-    except Exception as e:
-        print(f"-> Erreur parsing pandas FBref: {e}")
+        mp_i = to_int(mp)
+        gls_i = to_int(gls)
+        ast_i = to_int(ast)
+        mins_i = to_int(mins)
+        squad_txt = squad.get_text(" ", strip=True) if squad else ""
+
+        # score: priorité saison demandée, sinon minutes
+        score = mins_i
+        if season and season_txt == season:
+            score += 1_000_000  # force la saison courante
+        if club_hint and club_hint.lower() in squad_txt.lower():
+            score += 50_000     # bonus si club match
+
+        if score > best_score:
+            best_score = score
+            best = {
+                "fbref_url": player_url,
+                "fbref_season": season_txt,
+                "appearances": mp_i,
+                "goals": gls_i,
+                "assists": ast_i,
+                "minutes_played": mins_i,
+            }
+
+    return best
+
+def fbref_stats_for_player(player_name: str, season: str | None = None, club_hint: str | None = None) -> dict | None:
+    cands = fbref_search_candidates(player_name, limit=6)
+    if not cands:
         return None
 
-def fbref_stats_for_player(player_name: str, season: str | None = None) -> dict | None:
-    url = fbref_search_player_url(player_name)
-    if not url:
-        return None
+    # on teste les 3 meilleurs candidats
+    for c in cands[:3]:
+        time.sleep(0.6)
+        stats = fbref_scrape_standard(c["url"], season=season, club_hint=club_hint)
+        if stats and (stats.get("appearances", 0) > 0 or stats.get("minutes_played", 0) > 0):
+            return stats
+
+    # fallback: retourne le meilleur même si MP=0
     time.sleep(0.6)
-    return fbref_get_standard_stats(url, season=season) or {"fbref_url": url}
+    return fbref_scrape_standard(cands[0]["url"], season=season, club_hint=club_hint)
 
 # ========== WIKIDATA SCRAPING (Source stable pour données de base) ==========
 
 WIKIDATA_API = "https://www.wikidata.org/w/api.php"
 WIKIDATA_ENTITY = "https://www.wikidata.org/wiki/Special:EntityData/{qid}.json"
 
-def _parse_wikidata_time(time_str: str):
-    # Exemple: "+2006-07-13T00:00:00Z"
+def _parse_wikidata_time(time_str: str) -> date | None:
+    # "+2006-07-13T00:00:00Z"
     try:
         s = time_str.strip()
         if s.startswith("+"):
             s = s[1:]
-        return date.fromisoformat(s.split("T")[0])  # ✅ Fix: date.fromisoformat (pas datetime.date)
+        return date.fromisoformat(s.split("T")[0])
     except Exception:
         return None
 
-def _age_from_birthdate(dob):
+def _age_from_dob(dob: date) -> int:
     today = date.today()
     return today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+
+def _clean_text(s: str | None) -> str | None:
+    if not s:
+        return None
+    s = re.sub(r"[\u200b\u200e\u200f]", "", s)
+    s = " ".join(s.split()).strip()
+    return s or None
+
+def _pos_normalize(label: str) -> str:
+    l = (label or "").lower()
+    # normalisation simple pour ton UI
+    if "goalkeeper" in l or "gardien" in l:
+        return "Goalkeeper"
+    if "defender" in l or "back" in l or "défenseur" in l:
+        return "Defender"
+    if "midfielder" in l or "milieu" in l:
+        return "Midfielder"
+    if "forward" in l or "winger" in l or "atta" in l:
+        return "Forward"
+    # fallback
+    return label
 
 def wikidata_search_qid(player_name: str, lang: str = "en") -> str | None:
     params = {
@@ -773,74 +798,108 @@ def wikidata_search_qid(player_name: str, lang: str = "en") -> str | None:
 
 def wikidata_get_entity(qid: str) -> dict | None:
     url = WIKIDATA_ENTITY.format(qid=qid)
-    r = requests.get(url, headers=HEADERS, timeout=10)
+    r = requests.get(url, headers=HEADERS, timeout=12)
     if r.status_code != 200:
         return None
     return r.json()
 
 def _wd_get_label(entity: dict, qid: str, lang="en") -> str | None:
     try:
-        return entity["entities"][qid]["labels"].get(lang, {}).get("value") \
-            or entity["entities"][qid]["labels"].get("fr", {}).get("value")
+        labels = entity["entities"][qid]["labels"]
+        return labels.get(lang, {}).get("value") or labels.get("fr", {}).get("value")
     except Exception:
         return None
 
-def _wd_get_claim_ids(entity: dict, qid: str, pid: str) -> list:
-    # Retourne une liste de Q-ids (ou autres ids) d'un claim Wikidata
-    out = []
-    try:
-        claims = entity["entities"][qid]["claims"].get(pid, [])
-        for c in claims:
-            dv = c.get("mainsnak", {}).get("datavalue", {}).get("value")
-            if isinstance(dv, dict) and "id" in dv:
-                out.append(dv["id"])
-    except Exception:
-        pass
-    return out
-
-def _wd_get_string_claim(entity: dict, qid: str, pid: str) -> str | None:
-    try:
-        claims = entity["entities"][qid]["claims"].get(pid, [])
-        if not claims:
-            return None
-        dv = claims[0].get("mainsnak", {}).get("datavalue", {}).get("value")
-        if isinstance(dv, str):
-            return dv
-    except Exception:
-        pass
-    return None
-
-def _wd_get_time_claim(entity: dict, qid: str, pid: str):
-    try:
-        claims = entity["entities"][qid]["claims"].get(pid, [])
-        if not claims:
-            return None
-        dv = claims[0].get("mainsnak", {}).get("datavalue", {}).get("value", {})
-        t = dv.get("time")
-        if t:
-            return _parse_wikidata_time(t)
-    except Exception:
-        pass
-    return None
-
-def _wd_resolve_qid_to_label(qid: str, lang="en") -> str | None:
-    # Petit resolve label (1 call) — acceptable pour 2-3 champs
+def _wd_resolve_label(qid: str, lang="en") -> str | None:
     ent = wikidata_get_entity(qid)
     if not ent:
         return None
     return _wd_get_label(ent, qid, lang=lang)
 
+def _wd_claims(entity: dict, qid: str, pid: str) -> list:
+    try:
+        return entity["entities"][qid]["claims"].get(pid, [])
+    except Exception:
+        return []
+
+def _wd_first_qid(entity: dict, qid: str, pid: str) -> str | None:
+    claims = _wd_claims(entity, qid, pid)
+    for c in claims:
+        dv = c.get("mainsnak", {}).get("datavalue", {}).get("value")
+        if isinstance(dv, dict) and "id" in dv:
+            return dv["id"]
+    return None
+
+def _wd_time(entity: dict, qid: str, pid: str) -> date | None:
+    claims = _wd_claims(entity, qid, pid)
+    if not claims:
+        return None
+    dv = claims[0].get("mainsnak", {}).get("datavalue", {}).get("value", {})
+    t = dv.get("time")
+    return _parse_wikidata_time(t) if t else None
+
+def _wd_quantity(entity: dict, qid: str, pid: str) -> tuple[float | None, str | None]:
+    # returns (amount, unit_url)
+    claims = _wd_claims(entity, qid, pid)
+    if not claims:
+        return None, None
+    dv = claims[0].get("mainsnak", {}).get("datavalue", {}).get("value", {})
+    amount = dv.get("amount")
+    unit = dv.get("unit")
+    try:
+        if amount is None:
+            return None, unit
+        return float(str(amount).replace("+", "")), unit
+    except Exception:
+        return None, unit
+
+def _wd_best_current_club_qid(entity: dict, qid: str) -> str | None:
+    """
+    P54 = club actuel/ancien club.
+    On choisit en priorité :
+      1) un statement sans date de fin (qualifier P582 absent)
+      2) parmi ceux-ci, celui avec la date de début (P580) la plus récente
+      3) fallback: premier
+    """
+    claims = _wd_claims(entity, qid, "P54")
+    if not claims:
+        return None
+
+    def get_qid(c):
+        dv = c.get("mainsnak", {}).get("datavalue", {}).get("value")
+        return dv.get("id") if isinstance(dv, dict) else None
+
+    def get_qual_date(c, pid):
+        q = c.get("qualifiers", {}).get(pid, [])
+        if not q:
+            return None
+        dv = q[0].get("datavalue", {}).get("value", {})
+        t = dv.get("time")
+        return _parse_wikidata_time(t) if t else None
+
+    best = None
+    best_start = date(1900, 1, 1)
+
+    for c in claims:
+        club_qid = get_qid(c)
+        if not club_qid:
+            continue
+
+        end = get_qual_date(c, "P582")   # end time
+        start = get_qual_date(c, "P580") # start time
+
+        if end is None:
+            # club en cours
+            if start and start > best_start:
+                best_start = start
+                best = club_qid
+            elif best is None:
+                best = club_qid
+
+    # fallback
+    return best or get_qid(claims[0])
+
 def wikidata_profile(player_name: str) -> dict | None:
-    """
-    Profil stable:
-    - name (label)
-    - age (P569)
-    - nationality (P27)
-    - position (P413)
-    - height (P2048)
-    - current_club (P54 sans end date → approximé: 1er)
-    - image_url (P18)
-    """
     qid = wikidata_search_qid(player_name, lang="en")
     if not qid:
         return None
@@ -849,56 +908,50 @@ def wikidata_profile(player_name: str) -> dict | None:
     if not entity:
         return None
 
-    result = {
-        "wikidata_qid": qid,
-        "name": _wd_get_label(entity, qid, lang="en") or player_name
-    }
+    out = {"wikidata_qid": qid, "name": _wd_get_label(entity, qid, "en") or player_name}
 
-    # Birth date -> age
-    dob = _wd_get_time_claim(entity, qid, "P569")
+    # age (P569)
+    dob = _wd_time(entity, qid, "P569")
     if dob:
-        result["age"] = _age_from_birthdate(dob)
+        out["age"] = _age_from_dob(dob)
 
-    # Nationality
-    nat_ids = _wd_get_claim_ids(entity, qid, "P27")
-    if nat_ids:
-        nat_label = _wd_resolve_qid_to_label(nat_ids[0], lang="en")
-        if nat_label:
-            result["nationality"] = nat_label
+    # nationality (P27)
+    nat_qid = _wd_first_qid(entity, qid, "P27")
+    if nat_qid:
+        out["nationality"] = _wd_resolve_label(nat_qid, "en")
 
-    # Position
-    pos_ids = _wd_get_claim_ids(entity, qid, "P413")
-    if pos_ids:
-        pos_label = _wd_resolve_qid_to_label(pos_ids[0], lang="en")
+    # position (P413)
+    pos_qid = _wd_first_qid(entity, qid, "P413")
+    if pos_qid:
+        pos_label = _wd_resolve_label(pos_qid, "en")
         if pos_label:
-            result["position"] = pos_label
+            out["position"] = _pos_normalize(pos_label)
 
-    # Height (meters) P2048 (quantity)
-    try:
-        claims = entity["entities"][qid]["claims"].get("P2048", [])
-        if claims:
-            dv = claims[0]["mainsnak"]["datavalue"]["value"]  # {"amount":"+1.78","unit":"..."}
-            amount = dv.get("amount")
-            if amount:
-                m = float(amount)
-                result["height"] = f"{m:.2f} m"
-    except Exception:
-        pass
+    # height (P2048) - ✅ Fix: gestion cm -> m
+    amount, unit = _wd_quantity(entity, qid, "P2048")
+    if amount is not None:
+        # unit url finira souvent par Q11573 (metre) ou Q174728 (centimetre)
+        if unit and unit.endswith("Q174728"):  # centimetre
+            out["height"] = f"{amount/100:.2f} m"
+        else:
+            # la plupart du temps c'est déjà en mètres
+            out["height"] = f"{amount:.2f} m"
 
-    # Current club (P54)
-    club_ids = _wd_get_claim_ids(entity, qid, "P54")
-    if club_ids:
-        club_label = _wd_resolve_qid_to_label(club_ids[0], lang="en")
-        if club_label:
-            result["current_club"] = club_label
+    # current club (P54) - ✅ Fix: prend le bon club (sans date de fin ou le plus récent)
+    club_qid = _wd_best_current_club_qid(entity, qid)
+    if club_qid:
+        out["current_club"] = _wd_resolve_label(club_qid, "en")
 
-    # Image P18 -> commons file name
-    img = _wd_get_string_claim(entity, qid, "P18")
-    if img:
-        # URL Commons Special:FilePath est la manière la plus simple
-        result["image_url"] = f"https://commons.wikimedia.org/wiki/Special:FilePath/{quote(img)}"
+    # image (P18)
+    p18 = _wd_claims(entity, qid, "P18")
+    if p18:
+        dv = p18[0].get("mainsnak", {}).get("datavalue", {}).get("value")
+        if isinstance(dv, str) and dv.strip():
+            out["image_url"] = f"https://commons.wikimedia.org/wiki/Special:FilePath/{quote(dv)}"
 
-    return result
+    # nettoyage
+    out = {k: _clean_text(v) if isinstance(v, str) else v for k, v in out.items()}
+    return out
 
 def merge_keep_existing(dst: dict, src: dict) -> dict:
     """
@@ -909,17 +962,16 @@ def merge_keep_existing(dst: dict, src: dict) -> dict:
             dst[k] = v
     return dst
 
-def current_season_str() -> str:
-    """
-    Calcule la saison actuelle automatiquement (format "YYYY-YYYY").
-    Saison européenne démarre ~ juillet.
-    """
-    today = date.today()
+def current_fb_season(today: date | None = None) -> str:
+    """Saison FBref probable (format YYYY-YYYY). On bascule en juillet."""
+    if today is None:
+        today = date.today()
     y = today.year
-    # saison européenne démarre ~ juillet
-    if today.month >= 7:
-        return f"{y}-{y+1}"
-    return f"{y-1}-{y}"
+    return f"{y}-{y+1}" if today.month >= 7 else f"{y-1}-{y}"
+
+def current_season_str() -> str:
+    """Alias pour compatibilité."""
+    return current_fb_season()
 
 def scrape_wikipedia_image(player_name):
     """Scrape l'image du joueur depuis Wikipedia avec plusieurs tentatives."""
@@ -1056,9 +1108,11 @@ def scrape_and_save_player_data(player_name: str):
         except Exception as e:
             print(f"-> Erreur scraping Wikidata: {e}")
 
-        # 3) FBREF ensuite (stats saison courante)
+        # 3) FBREF ensuite (stats saison courante + hint club)
         try:
-            fb = fbref_stats_for_player(all_data.get("name", normalized_name), season=current_season_str())
+            season = current_fb_season()
+            club_hint = all_data.get("current_club")
+            fb = fbref_stats_for_player(all_data.get("name", normalized_name), season=season, club_hint=club_hint)
             if fb:
                 all_data = merge_keep_existing(all_data, fb)
                 print(f"-> FBref OK: {all_data.get('appearances')} MP, {all_data.get('goals')} G, {all_data.get('assists')} A")
