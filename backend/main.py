@@ -423,6 +423,20 @@ def trigger_player_scraping(player_req: PlayerRequest):
         player_data = scrape_and_save_player_data(player_req.player_name)
         if not player_data:
             raise HTTPException(status_code=404, detail=f"Could not find or scrape data for player: {player_req.player_name}")
+
+        # Vérifie si la sauvegarde en DB a réussi (si pas d'ID, la DB a probablement échoué)
+        # Note: scrape_and_save_player_data retourne les données même si la DB échoue
+        # On vérifie donc si les données ont été sauvegardées en essayant de les récupérer
+        try:
+            from database import get_player_by_name
+            saved_player = get_player_by_name(player_data.get('name'))
+            if not saved_player:
+                # Les données ont été scrapées mais pas sauvegardées en DB
+                print(f"⚠️ ATTENTION: Données scrapées pour {player_data.get('name')} mais sauvegarde DB échouée")
+                # On continue quand même, mais on log l'erreur
+        except Exception as db_check_error:
+            print(f"⚠️ Erreur lors de la vérification DB: {db_check_error}")
+            # On continue quand même pour ne pas bloquer l'utilisateur
         
         # Enrichit les données manquantes avec OpenAI
         player_data = enrich_player_data_with_openai(player_data)
