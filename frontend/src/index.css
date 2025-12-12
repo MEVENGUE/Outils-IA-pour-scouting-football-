@@ -44,3 +44,16 @@ code {
   height: 100vh;
 }
 
+/* ========== ADAPTATION MOBILE ========== */
+@media (max-width: 768px) {
+  body {
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  
+  #root {
+    min-height: 100vh;
+    height: auto;
+  }
+}
+
