@@ -14,7 +14,7 @@ import re
 
 # Ajoute le dossier de scraping au path pour pouvoir importer les fonctions
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'scraping'))
-from scraper import scrape_and_save_player_data
+from scraping.scraper import scrape_and_save_player_data
 
 # Import du module de base de données centralisé
 from database import (
