@@ -12,12 +12,9 @@ import os
 import json
 import re
 
-# Ajoute la RACINE du projet au PYTHONPATH (pour pouvoir faire `from scraping.scraper import ...`)
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if BASE_DIR not in sys.path:
-    sys.path.append(BASE_DIR)
-
-from scraping.scraper import scrape_and_save_player_data
+# Ajoute le dossier de scraping au path pour pouvoir importer les fonctions
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'scraping'))
+from scraper import scrape_and_save_player_data
 
 # Import du module de base de données centralisé
 from database import (
@@ -38,8 +35,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",  # Développement local
         "http://127.0.0.1:5173",  # Développement local
-        "https://*.vercel.app",
-        "https://scoutfootballai-siteweb.vercel.app",# Tous les déploiements Vercel
+        "https://*.vercel.app",   # Tous les déploiements Vercel
         # Ajoutez votre domaine Vercel spécifique ici si nécessaire
         # "https://votre-app.vercel.app",
     ],
@@ -264,7 +260,9 @@ DONNÉES DU JOUEUR:
 - Âge: {player_data.get('age', 'N/A')} ans
 - Nationalité: {player_data.get('nationality', 'N/A')}
 - Club actuel: {player_data.get('current_club', 'N/A')}
-- Poste: {player_data.get('position', 'N/A')}
+- Poste (Transfermarkt): {player_data.get('position_tm', player_data.get('position', 'N/A'))}
+- Poste (FBref): {player_data.get('position_fbref', 'N/A')}
+- Poste affiché: {player_data.get('position', 'N/A')}
 - Taille: {player_data.get('height', 'N/A')}
 - Valeur marchande: {player_data.get('market_value', 'N/A')}
 
@@ -343,7 +341,9 @@ def enrich_player_data_with_openai(player_data):
 
 Joueur: {player_data.get('name', 'N/A')}
 Club: {player_data.get('current_club', 'N/A')}
-Poste: {player_data.get('position', 'N/A')}
+Poste (Transfermarkt): {player_data.get('position_tm', player_data.get('position', 'N/A'))}
+Poste (FBref): {player_data.get('position_fbref', 'N/A')}
+Poste affiché: {player_data.get('position', 'N/A')}
 
 IMPORTANT: Pour la nationalité, utilise le nom du pays en français ou en anglais (ex: "Espagne" ou "Spain", "France" ou "France", "Cameroun" ou "Cameroon"). 
 Si le joueur est bien connu (comme Lamine Yamal qui est espagnol), fournis sa vraie nationalité.
