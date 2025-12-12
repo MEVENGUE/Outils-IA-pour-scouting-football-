@@ -12,8 +12,10 @@ import os
 import json
 import re
 
-# Ajoute le dossier de scraping au path pour pouvoir importer les fonctions
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'scraping'))
+# Import correct du scraper (robuste Railway)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, BASE_DIR)  # important sur Railway
+
 from scraping.scraper import scrape_and_save_player_data
 
 # Import du module de base de données centralisé
