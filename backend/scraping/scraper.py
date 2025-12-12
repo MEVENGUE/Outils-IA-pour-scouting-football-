@@ -24,7 +24,9 @@ except ImportError:
 
 def init_db_local():
     """Fonction locale de fallback si le module centralisé n'est pas disponible."""
-    conn = sqlite3.connect(DB_PATH)
+    # S'assure que le répertoire existe
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     cur = conn.cursor()
     
     # Table principale des joueurs avec colonnes étendues
