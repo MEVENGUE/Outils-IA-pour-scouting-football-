@@ -14,7 +14,7 @@
 </div>
 
 
-## ⚠️ Uniquement sur PC (pas encore adapté sur Mobile 📱)
+## ⚙️ Sur PC 💻 et Mobile 📱
 
 
 ## 📋 Table des matières
