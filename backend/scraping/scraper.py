@@ -624,22 +624,142 @@ def scrape_fbref_stats(player_name: str, season: str = "2024-2025", tm_club: str
     print(f"-> Aucune stat FBref trouvée pour {player_name}")
     return {}
 
+# ========== FBREF SCRAPING (Stats saison courante) - Version pandas ==========
+
+FBREF_SEARCH = "https://fbref.com/en/search/search.fcgi?search={query}"
+FBREF_BASE = "https://fbref.com"
+
+def fbref_search_player_url(player_name: str) -> str | None:
+    q = quote(player_name.strip())
+    url = FBREF_SEARCH.format(query=q)
+    r = requests.get(url, headers=HEADERS, timeout=12)
+    if r.status_code != 200:
+        return None
+    soup = BeautifulSoup(r.text, "html.parser")
+    a = soup.select_one('div.search-item-name a[href^="/en/players/"]') or soup.select_one('a[href^="/en/players/"]')
+    if a and a.get("href"):
+        return FBREF_BASE + a["href"]
+    return None
+
+def _extract_table_html_from_comments(page_html: str, table_id: str) -> str | None:
+    if f'id="{table_id}"' in page_html:
+        return page_html
+    comments = re.findall(r"<!--(.*?)-->", page_html, flags=re.DOTALL)
+    for c in comments:
+        if f'id="{table_id}"' in c:
+            return c
+    return None
+
+def fbref_get_standard_stats(player_fbref_url: str, season: str | None = None) -> dict | None:
+    try:
+        import pandas as pd
+    except ImportError:
+        print("-> pandas non disponible, utilisation méthode alternative FBref")
+        return None
+    
+    r = requests.get(player_fbref_url, headers=HEADERS, timeout=12)
+    if r.status_code != 200:
+        return None
+
+    html = r.text
+    table_ids = ["stats_standard_dom_lg", "stats_standard_combined", "stats_standard"]
+
+    chosen_html = None
+    chosen_id = None
+    for tid in table_ids:
+        block = _extract_table_html_from_comments(html, tid)
+        if block:
+            chosen_html = block
+            chosen_id = tid
+            break
+    if not chosen_html:
+        return None
+
+    try:
+        tables = pd.read_html(chosen_html)
+        target = None
+        for t in tables:
+            cols = [str(c).lower() for c in t.columns]
+            if any("season" in c for c in cols) and any("gls" in c for c in cols) and any("ast" in c for c in cols):
+                target = t
+                break
+        if target is None:
+            return None
+
+        df = target.copy()
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = [c[-1] if c[-1] else c[0] for c in df.columns]
+
+        # garder saisons "YYYY-YYYY"
+        df = df[df["Season"].astype(str).str.contains(r"\d{4}-\d{4}", regex=True, na=False)]
+        if df.empty:
+            return None
+
+        if season:
+            df2 = df[df["Season"].astype(str).str.strip() == season]
+            if df2.empty:
+                df2 = df
+        else:
+            df2 = df
+
+        df2 = df2.sort_values(by="Season", ascending=False)
+        row = df2.iloc[0]
+
+        def geti(x):
+            try:
+                if pd.isna(x): return 0
+                return int(float(str(x).replace(",", "").strip()))
+            except Exception:
+                return 0
+
+        out = {
+            "fbref_url": player_fbref_url,
+            "fbref_table_used": chosen_id,
+            "fbref_season": str(row.get("Season")),
+            "appearances": geti(row.get("MP")),
+            "goals": geti(row.get("Gls")),
+            "assists": geti(row.get("Ast")),
+            "minutes_played": geti(row.get("Min")),
+        }
+        return out
+    except Exception as e:
+        print(f"-> Erreur parsing pandas FBref: {e}")
+        return None
+
+def fbref_stats_for_player(player_name: str, season: str | None = None) -> dict | None:
+    url = fbref_search_player_url(player_name)
+    if not url:
+        return None
+    time.sleep(0.6)
+    return fbref_get_standard_stats(url, season=season) or {"fbref_url": url}
+
 # ========== WIKIDATA SCRAPING (Source stable pour données de base) ==========
 
 WIKIDATA_API = "https://www.wikidata.org/w/api.php"
-WIKIDATA_ENTITY = "https://www.wikidata.org/wiki/Special:EntityData/{}.json"
+WIKIDATA_ENTITY = "https://www.wikidata.org/wiki/Special:EntityData/{qid}.json"
+
+def _parse_wikidata_time(time_str: str):
+    # Exemple: "+2006-07-13T00:00:00Z"
+    try:
+        s = time_str.strip()
+        if s.startswith("+"):
+            s = s[1:]
+        return datetime.date.fromisoformat(s.split("T")[0])
+    except Exception:
+        return None
+
+def _age_from_birthdate(dob):
+    today = date.today()
+    return today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
 
 def wikidata_search_qid(player_name: str, lang: str = "en") -> str | None:
-    """
-    Recherche un item Wikidata (QID) par nom.
-    Retourne ex: "Q12345"
-    """
     params = {
         "action": "wbsearchentities",
+        "format": "json",
         "search": player_name,
         "language": lang,
-        "format": "json",
-        "limit": 5
+        "limit": 5,
+        "type": "item"
     }
     r = requests.get(WIKIDATA_API, params=params, headers=HEADERS, timeout=10)
     if r.status_code != 200:
@@ -648,158 +768,136 @@ def wikidata_search_qid(player_name: str, lang: str = "en") -> str | None:
     results = data.get("search", [])
     if not results:
         return None
-    return results[0].get("id")  # meilleur match
+    return results[0].get("id")
 
-def _get_entity(qid: str) -> dict | None:
-    r = requests.get(WIKIDATA_ENTITY.format(qid), headers=HEADERS, timeout=10)
+def wikidata_get_entity(qid: str) -> dict | None:
+    url = WIKIDATA_ENTITY.format(qid=qid)
+    r = requests.get(url, headers=HEADERS, timeout=10)
     if r.status_code != 200:
         return None
-    j = r.json()
-    return j.get("entities", {}).get(qid)
+    return r.json()
 
-def _get_label(entity: dict, lang="en") -> str | None:
-    lbl = entity.get("labels", {}).get(lang)
-    if lbl:
-        return lbl.get("value")
-    # fallback
-    for l in ("fr", "en"):
-        if entity.get("labels", {}).get(l):
-            return entity["labels"][l]["value"]
+def _wd_get_label(entity: dict, qid: str, lang="en") -> str | None:
+    try:
+        return entity["entities"][qid]["labels"].get(lang, {}).get("value") \
+            or entity["entities"][qid]["labels"].get("fr", {}).get("value")
+    except Exception:
+        return None
+
+def _wd_get_claim_ids(entity: dict, qid: str, pid: str) -> list:
+    # Retourne une liste de Q-ids (ou autres ids) d'un claim Wikidata
+    out = []
+    try:
+        claims = entity["entities"][qid]["claims"].get(pid, [])
+        for c in claims:
+            dv = c.get("mainsnak", {}).get("datavalue", {}).get("value")
+            if isinstance(dv, dict) and "id" in dv:
+                out.append(dv["id"])
+    except Exception:
+        pass
+    return out
+
+def _wd_get_string_claim(entity: dict, qid: str, pid: str) -> str | None:
+    try:
+        claims = entity["entities"][qid]["claims"].get(pid, [])
+        if not claims:
+            return None
+        dv = claims[0].get("mainsnak", {}).get("datavalue", {}).get("value")
+        if isinstance(dv, str):
+            return dv
+    except Exception:
+        pass
     return None
 
-def _extract_time(claim: dict) -> str | None:
-    # format wikidata: "+2007-07-13T00:00:00Z"
+def _wd_get_time_claim(entity: dict, qid: str, pid: str):
     try:
-        t = claim["mainsnak"]["datavalue"]["value"]["time"]
-        t = t.lstrip("+")
-        return t.split("T")[0]
+        claims = entity["entities"][qid]["claims"].get(pid, [])
+        if not claims:
+            return None
+        dv = claims[0].get("mainsnak", {}).get("datavalue", {}).get("value", {})
+        t = dv.get("time")
+        if t:
+            return _parse_wikidata_time(t)
     except Exception:
+        pass
+    return None
+
+def _wd_resolve_qid_to_label(qid: str, lang="en") -> str | None:
+    # Petit resolve label (1 call) — acceptable pour 2-3 champs
+    ent = wikidata_get_entity(qid)
+    if not ent:
         return None
+    return _wd_get_label(ent, qid, lang=lang)
 
-def _calc_age(iso_date: str) -> int | None:
-    try:
-        y, m, d = map(int, iso_date.split("-"))
-        today = date.today()
-        return today.year - y - ((today.month, today.day) < (m, d))
-    except Exception:
-        return None
-
-def _extract_quantity(claim: dict) -> float | None:
-    # ex: {"amount":"+1.78","unit":"http://.../Q11573"} (mètres)
-    try:
-        v = claim["mainsnak"]["datavalue"]["value"]["amount"]
-        return float(v)
-    except Exception:
-        return None
-
-def _extract_entity_id(claim: dict) -> str | None:
-    try:
-        return claim["mainsnak"]["datavalue"]["value"]["id"]  # ex: "Q615"
-    except Exception:
-        return None
-
-def _extract_commons_filename(claim: dict) -> str | None:
-    try:
-        return claim["mainsnak"]["datavalue"]["value"]  # ex: "Kylian Mbappé 2023.jpg"
-    except Exception:
-        return None
-
-def _commons_file_url(filename: str, width: int = 400) -> str:
-    # MediaWiki image redirect (simple, pratique)
-    return f"https://commons.wikimedia.org/wiki/Special:FilePath/{quote(filename)}?width={width}"
-
-def wikidata_get_player(player_name: str, lang_search="en") -> dict | None:
+def wikidata_profile(player_name: str) -> dict | None:
     """
-    Récupère les données de base d'un joueur depuis Wikidata.
-    Retourne un dict avec name, age, nationality, current_club, position, height, image_url.
+    Profil stable:
+    - name (label)
+    - age (P569)
+    - nationality (P27)
+    - position (P413)
+    - height (P2048)
+    - current_club (P54 sans end date → approximé: 1er)
+    - image_url (P18)
     """
-    qid = wikidata_search_qid(player_name, lang=lang_search)
+    qid = wikidata_search_qid(player_name, lang="en")
     if not qid:
         return None
 
-    entity = _get_entity(qid)
+    entity = wikidata_get_entity(qid)
     if not entity:
         return None
 
-    claims = entity.get("claims", {})
-
-    # P569: date de naissance
-    birth_iso = None
-    if "P569" in claims and claims["P569"]:
-        birth_iso = _extract_time(claims["P569"][0])
-
-    # P2048: taille (m)
-    height_m = None
-    if "P2048" in claims and claims["P2048"]:
-        height_m = _extract_quantity(claims["P2048"][0])
-    height_str = f"{height_m:.2f} m" if height_m else None
-
-    # P413: poste (item -> label)
-    position = None
-    if "P413" in claims and claims["P413"]:
-        pos_qid = _extract_entity_id(claims["P413"][0])
-        if pos_qid:
-            pos_entity = _get_entity(pos_qid)
-            if pos_entity:
-                position = _get_label(pos_entity, lang="en") or _get_label(pos_entity, lang="fr")
-
-    # P27: nationalité
-    nationality = None
-    if "P27" in claims and claims["P27"]:
-        nat_qid = _extract_entity_id(claims["P27"][0])
-        if nat_qid:
-            nat_entity = _get_entity(nat_qid)
-            if nat_entity:
-                nationality = _get_label(nat_entity, lang="en") or _get_label(nat_entity, lang="fr")
-
-    # P54: club (attention: plusieurs valeurs dans le temps)
-    current_club = None
-    if "P54" in claims and claims["P54"]:
-        # heuristic: prendre le 1er claim (souvent le plus récent mais pas garanti)
-        # mieux: trier par qualificatif "end time" (P582) absent => club actuel
-        club_claims = claims["P54"]
-
-        def is_current(cl):
-            # si qualifiers contient P582 (end time) => pas current
-            quals = cl.get("qualifiers", {})
-            return "P582" not in quals
-
-        current_candidates = [c for c in club_claims if is_current(c)]
-        pick = current_candidates[0] if current_candidates else club_claims[0]
-        club_qid = _extract_entity_id(pick)
-        if club_qid:
-            club_entity = _get_entity(club_qid)
-            if club_entity:
-                current_club = _get_label(club_entity, lang="en") or _get_label(club_entity, lang="fr")
-
-    # P18: image
-    image_url = None
-    if "P18" in claims and claims["P18"]:
-        filename = _extract_commons_filename(claims["P18"][0])
-        if filename:
-            image_url = _commons_file_url(filename, width=500)
-
-    # Nom
-    name = _get_label(entity, lang="en") or _get_label(entity, lang="fr") or player_name
-
-    # Age calculé
-    age = _calc_age(birth_iso) if birth_iso else None
-
-    return {
-        "name": name,
-        "age": age,
-        "nationality": nationality,
-        "current_club": current_club,
-        "position": position,
-        "height": height_str,
-        "image_url": image_url,
-        # Stats saison: pas fiable via Wikidata -> tu laisses à 0 ou tu fais fallback FBref
-        "goals": 0,
-        "assists": 0,
-        "appearances": 0,
-        # pour debug/traçabilité
-        "source_wikidata": f"https://www.wikidata.org/wiki/{qid}"
+    result = {
+        "wikidata_qid": qid,
+        "name": _wd_get_label(entity, qid, lang="en") or player_name
     }
+
+    # Birth date -> age
+    dob = _wd_get_time_claim(entity, qid, "P569")
+    if dob:
+        result["age"] = _age_from_birthdate(dob)
+
+    # Nationality
+    nat_ids = _wd_get_claim_ids(entity, qid, "P27")
+    if nat_ids:
+        nat_label = _wd_resolve_qid_to_label(nat_ids[0], lang="en")
+        if nat_label:
+            result["nationality"] = nat_label
+
+    # Position
+    pos_ids = _wd_get_claim_ids(entity, qid, "P413")
+    if pos_ids:
+        pos_label = _wd_resolve_qid_to_label(pos_ids[0], lang="en")
+        if pos_label:
+            result["position"] = pos_label
+
+    # Height (meters) P2048 (quantity)
+    try:
+        claims = entity["entities"][qid]["claims"].get("P2048", [])
+        if claims:
+            dv = claims[0]["mainsnak"]["datavalue"]["value"]  # {"amount":"+1.78","unit":"..."}
+            amount = dv.get("amount")
+            if amount:
+                m = float(amount)
+                result["height"] = f"{m:.2f} m"
+    except Exception:
+        pass
+
+    # Current club (P54)
+    club_ids = _wd_get_claim_ids(entity, qid, "P54")
+    if club_ids:
+        club_label = _wd_resolve_qid_to_label(club_ids[0], lang="en")
+        if club_label:
+            result["current_club"] = club_label
+
+    # Image P18 -> commons file name
+    img = _wd_get_string_claim(entity, qid, "P18")
+    if img:
+        # URL Commons Special:FilePath est la manière la plus simple
+        result["image_url"] = f"https://commons.wikimedia.org/wiki/Special:FilePath/{quote(img)}"
+
+    return result
 
 def merge_keep_existing(dst: dict, src: dict) -> dict:
     """
@@ -919,92 +1017,73 @@ def save_player_to_db(player_data):
         return None
 
 
-def scrape_and_save_player_data(player_name):
+def scrape_and_save_player_data(player_name: str):
+    """
+    Pipeline robuste: Wikidata -> FBref -> Transfermarkt (optionnel)
+    """
     print(f"--- Lancement du scraping pour : {player_name} ---")
 
     try:
-        # Normalise d'abord le nom avec OpenAI pour améliorer les chances de trouver le joueur
+        # 1) Normalisation nom (OpenAI)
         normalized_name = normalize_player_name_with_openai(player_name)
         print(f"-> Nom normalisé: '{player_name}' -> '{normalized_name}'")
-        
-        all_data = {'name': normalized_name}
 
-        # ========== 1) WIKIDATA (Source stable pour données de base) ==========
+        all_data = {"name": normalized_name}
+
+        # 2) WIKIDATA d'abord (âge / poste / taille / club / image / nationalité)
         try:
-            wd_data = wikidata_get_player(normalized_name, lang_search="en")
-            if wd_data:
-                # Merge Wikidata dans all_data (ne remplace que si valeur non vide)
-                merge_keep_existing(all_data, wd_data)
-                print(f"-> Données Wikidata récupérées: age={all_data.get('age')}, pos={all_data.get('position')}, club={all_data.get('current_club')}")
+            wd = wikidata_profile(normalized_name)
+            if wd:
+                all_data = merge_keep_existing(all_data, wd)
+                print(f"-> Wikidata OK: age={all_data.get('age')} pos={all_data.get('position')} height={all_data.get('height')}")
+            else:
+                print("-> Wikidata: aucun résultat")
         except Exception as e:
             print(f"-> Erreur scraping Wikidata: {e}")
 
-        precise_name = all_data.get('name', normalized_name)
-
-        # ========== 2) TRANSFERMARKT (Fallback pour market_value et complément) ==========
-        tm_url = get_player_page_url(precise_name, "transfermarkt")
-        if tm_url:
-            all_data['source_transfermarkt'] = tm_url
-            try:
-                tm_data = scrape_transfermarkt(tm_url)
-                if tm_data:
-                    # Merge Transfermarkt (ne remplace que si Wikidata n'a pas fourni)
-                    merge_keep_existing(all_data, tm_data)
-                    # Market value vient toujours de Transfermarkt
-                    if tm_data.get('market_value'):
-                        all_data['market_value'] = tm_data['market_value']
-            except Exception as e:
-                print(f"-> Erreur scraping Transfermarkt: {e}")
-        else:
-            print("-> Joueur non trouvé sur Transfermarkt (fallback uniquement)")
-
-        # ========== 3) FBREF (Stats saison courante) ==========
+        # 3) FBREF ensuite (stats saison courante)
         try:
-            fbref_stats = scrape_fbref_stats(
-                precise_name,
-                season="2024-2025",
-                tm_club=all_data.get("current_club")
-            )
-            if fbref_stats:
-                all_data.update(fbref_stats)
-                print(f"-> Stats FBref intégrées pour {precise_name}")
+            fb = fbref_stats_for_player(all_data.get("name", normalized_name), season="2024-2025")
+            if fb:
+                all_data = merge_keep_existing(all_data, fb)
+                print(f"-> FBref OK: {all_data.get('appearances')} MP, {all_data.get('goals')} G, {all_data.get('assists')} A")
+            else:
+                print("-> FBref: aucun résultat")
         except Exception as e:
             print(f"-> Erreur scraping FBref: {e}")
-        
-        # Fusion des positions : priorité Wikidata > Transfermarkt > FBref
-        if all_data.get("position"):
-            pass  # Déjà défini par Wikidata
-        elif all_data.get("position_tm"):
-            all_data["position"] = all_data["position_tm"]
-        elif all_data.get("position_fbref"):
-            all_data["position"] = all_data["position_fbref"]
-        
-        # Log des positions trouvées
-        if all_data.get("position") or all_data.get("position_tm") or all_data.get("position_fbref"):
-            positions_info = []
-            if all_data.get("position"):
-                positions_info.append(f"Wikidata: {all_data['position']}")
-            if all_data.get("position_tm"):
-                positions_info.append(f"TM: {all_data['position_tm']}")
-            if all_data.get("position_fbref"):
-                positions_info.append(f"FBref: {all_data['position_fbref']}")
-            if positions_info:
-                print(f"-> Positions trouvées: {', '.join(positions_info)}")
 
-        # ========== 4) IMAGE (Wikidata en priorité, sinon Wikipedia fallback) ==========
+        # 4) Transfermarkt OPTIONNEL : uniquement market_value (et jamais age/position)
+        try:
+            tm_url = get_player_page_url(all_data.get("name", normalized_name), "transfermarkt")
+            if tm_url:
+                tm_data = scrape_transfermarkt(tm_url) or {}
+                # ne prends QUE market_value (ne peut jamais écraser age/position de Wikidata)
+                all_data = merge_keep_existing(all_data, {
+                    "market_value": tm_data.get("market_value"),
+                    "source_transfermarkt": tm_url
+                })
+        except Exception as e:
+            print(f"-> TM market_value fail: {e}")
+
+        # 5) Valeurs par défaut propres (évite null/None en front)
+        for k in ("goals", "assists", "appearances", "minutes_played"):
+            if all_data.get(k) is None:
+                all_data[k] = 0
+
+        # 6) Image fallback Wikipedia si Wikidata n'a pas fourni
         if not all_data.get("image_url"):
             try:
-                img = scrape_wikipedia_image(precise_name)
+                img = scrape_wikipedia_image(all_data.get("name", normalized_name))
                 if img:
                     all_data["image_url"] = img
             except Exception as e:
                 print(f"-> Erreur image: {e}")
 
-        # Sauvegarde
+        # 7) Sauvegarde DB
         try:
             saved = save_player_to_db(all_data)
             if saved:
-                print(f"-> Données sauvegardées pour {precise_name}")
+                print(f"-> Données sauvegardées pour {saved.get('name')}")
                 return saved
         except Exception as e:
             print(f"-> Erreur sauvegarde DB: {e}")
