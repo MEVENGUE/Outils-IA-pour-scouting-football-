@@ -35,11 +35,10 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",  # Développement local
         "http://127.0.0.1:5173",  # Développement local
-        "https://scoutfootballai-siteweb.vercel.app",# Ajoutez votre domaine Vercel spécifique ici si nécessaire
-        # "https://votre-app.vercel.app",
+        "https://scoutfootballai-siteweb.vercel.app",  # Votre domaine Vercel
     ],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # OPTIONS explicite pour preflight
     allow_headers=["*"],
 )
 
@@ -423,7 +422,7 @@ def trigger_player_scraping(player_req: PlayerRequest):
         player_data = scrape_and_save_player_data(player_req.player_name)
         if not player_data:
             raise HTTPException(status_code=404, detail=f"Could not find or scrape data for player: {player_req.player_name}")
-
+        
         # Vérifie si la sauvegarde en DB a réussi (si pas d'ID, la DB a probablement échoué)
         # Note: scrape_and_save_player_data retourne les données même si la DB échoue
         # On vérifie donc si les données ont été sauvegardées en essayant de les récupérer
@@ -512,7 +511,31 @@ Si tu ne connais pas, réponds "Unknown". Réponds uniquement le nom du pays, sa
         if player_data.get('nationality'):
             update_player_field(player_data.get('name'), 'nationality', player_data['nationality'])
         
-        return {"player": player_data}
+        # Normalise les noms de champs pour le frontend
+        # S'assure que "club" est mappé vers "current_club" si présent
+        if 'club' in player_data and 'current_club' not in player_data:
+            player_data['current_club'] = player_data['club']
+        elif 'current_club' not in player_data:
+            player_data['current_club'] = None
+        
+        # S'assure que tous les champs attendus par le frontend sont présents
+        normalized_player = {
+            'id': player_data.get('id'),
+            'name': player_data.get('name', ''),
+            'age': player_data.get('age'),
+            'nationality': player_data.get('nationality', 'Unknown'),
+            'current_club': player_data.get('current_club') or player_data.get('club'),
+            'position': player_data.get('position') or player_data.get('position_tm') or player_data.get('position_fbref'),
+            'height': player_data.get('height'),
+            'market_value': player_data.get('market_value'),
+            'goals': player_data.get('goals', 0),
+            'assists': player_data.get('assists', 0),
+            'appearances': player_data.get('appearances', 0),
+            'image_url': player_data.get('image_url'),
+            'scouting_report': player_data.get('scouting_report')
+        }
+        
+        return {"player": normalized_player}
     except HTTPException:
         raise
     except Exception as e:
