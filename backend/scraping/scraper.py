@@ -294,63 +294,75 @@ def scrape_transfermarkt(url):
         club_link = soup.select_one('.data-header__club-info a')
         data['current_club'] = club_link.get_text(strip=True) if club_link else 'N/A'
 
-        # Infos détaillées
-        for info_box in soup.select('.info-table__row'):
-            label_elem = info_box.select_one('.info-table__label')
-            content_elem = info_box.select_one('.info-table__content')
-            if not label_elem or not content_elem:
+        # Infos détaillées - Version robuste avec fallback
+        def norm(s: str) -> str:
+            return re.sub(r"\s+", " ", s.strip().lower())
+
+        # ---- 1) Lecture via info-table (méthode principale) ----
+        for row in soup.select(".info-table__row"):
+            label_el = row.select_one(".info-table__label")
+            val_el = row.select_one(".info-table__content")
+            if not label_el or not val_el:
                 continue
-                
-            label = label_elem.get_text(strip=True)
-            content = content_elem.get_text(strip=True)
-            
-            if "Date of birth/Age" in label or "Geburtsdatum/Alter" in label or "Date de naissance" in label:
-                if '(' in content:
-                    age_match = re.search(r'\((\d+)\)', content)
-                    if age_match:
-                        try:
-                            data['age'] = int(age_match.group(1))
-                        except ValueError:
-                            pass
-            # Recherche de la nationalité avec plusieurs variantes
-            if ("Nationality" in label or "Nationalität" in label or "Nationalité" in label or 
-                "Citizenship" in label or "Staatsangehörigkeit" in label):
-                # Nettoie la nationalité (peut contenir des emojis de drapeaux, plusieurs lignes, etc.)
-                nationality = content.strip()
-                
-                # Enlève les emojis de drapeaux (Unicode flags)
-                nationality = re.sub(r'[\U0001F1E6-\U0001F1FF]', '', nationality)  # Enlève les emojis de drapeaux
-                # Enlève les emojis de drapeaux individuels
-                nationality = re.sub(r'[\U0001F300-\U0001F9FF]', '', nationality)  # Enlève tous les emojis
-                
-                # Prend la première nationalité si plusieurs (séparées par \n, , ou |)
-                if '\n' in nationality:
-                    nationality = nationality.split('\n')[0].strip()
-                if ',' in nationality:
-                    nationality = nationality.split(',')[0].strip()
-                if '|' in nationality:
-                    nationality = nationality.split('|')[0].strip()
-                
-                # Nettoie les espaces multiples mais garde les caractères spéciaux comme les accents
-                nationality = ' '.join(nationality.split())
-                
-                # Enlève les caractères non-alphanumériques en début/fin mais garde les accents
-                nationality = nationality.strip('.,;:!?()[]{}')
-                
-                if nationality and len(nationality) > 1:
-                    data['nationality'] = nationality
-                    print(f"-> Nationalité trouvée: {nationality}")
-            
-            # Poste (Transfermarkt) - robuste
-            if any(k in label.lower() for k in ["position", "poste"]):
-                pos = content.strip()
-                # Nettoyage : enlève les espaces multiples
+
+            label = norm(label_el.get_text(" ", strip=True))
+            val = val_el.get_text(" ", strip=True).strip()
+
+            # AGE
+            if any(k in label for k in ["date of birth", "age", "geburtsdatum", "alter", "date de naissance"]):
+                m = re.search(r"\((\d{1,2})\)", val)
+                if m:
+                    data["age"] = int(m.group(1))
+
+            # NATIONALITY
+            if any(k in label for k in ["nationality", "citizenship", "nationalität", "nationalité", "staatsangehörigkeit"]):
+                nationality = val
+                nationality = re.sub(r"[\U0001F1E6-\U0001F1FF]", "", nationality)
+                nationality = re.sub(r"[\U0001F300-\U0001F9FF]", "", nationality)
+                nationality = nationality.split("\n")[0].split(",")[0].split("|")[0].strip()
+                nationality = " ".join(nationality.split()).strip('.,;:!?()[]{}')
+                if nationality:
+                    data["nationality"] = nationality
+
+            # POSITION
+            if any(k in label for k in ["position", "poste"]):
+                # Transfermarkt peut renvoyer "Left Winger" etc.
+                pos = val.strip()
                 pos = re.sub(r"\s+", " ", pos)
                 data["position_tm"] = pos
                 # Compatibilité avec le frontend actuel
                 data["position"] = pos
-            if "Height" in label or "Größe" in label or "Taille" in label:
-                data['height'] = content.replace(',', '.').strip()
+
+            # HEIGHT
+            if any(k in label for k in ["height", "größe", "taille"]):
+                data["height"] = val.replace(",", ".").strip()
+
+        # ---- 2) Fallback: lecture via header items (si info-table absent) ----
+        if "age" not in data or "position" not in data or "height" not in data:
+            header_items = soup.select(".data-header__items li")
+            for li in header_items:
+                txt = li.get_text(" ", strip=True)
+                t = norm(txt)
+
+                # exemples possibles : "Age: 24", "Position: Right Winger", "Height: 1,71 m"
+                if "age" in t and "age" not in data:
+                    m = re.search(r"\b(\d{1,2})\b", txt)
+                    if m:
+                        data["age"] = int(m.group(1))
+
+                if "position" in t and "position" not in data:
+                    # prend ce qui suit ':'
+                    parts = txt.split(":")
+                    if len(parts) >= 2:
+                        pos = parts[1].strip()
+                        pos = re.sub(r"\s+", " ", pos)
+                        data["position_tm"] = pos
+                        data["position"] = pos
+
+                if "height" in t and "height" not in data:
+                    parts = txt.split(":")
+                    if len(parts) >= 2:
+                        data["height"] = parts[1].strip().replace(",", ".")
         
         # Méthode alternative: cherche la nationalité dans d'autres sections si pas trouvée
         if 'nationality' not in data:
