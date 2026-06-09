@@ -13,7 +13,7 @@ const WatchlistView = lazy(() => import('../features/watchlist/WatchlistView'))
 const CompareView = lazy(() => import('../features/compare/CompareView'))
 const TalentView = lazy(() => import('../features/talent/TalentDiscoveryView'))
 const DocumentsView = lazy(() => import('../features/documents/DocumentCenterView'))
-const SettingsView = lazy(() => import('../features/settings/SettingsView'))
+const AuthorView = lazy(() => import('../features/author/AuthorView'))
 const SearchView = lazy(() => import('../features/search/SearchView'))
 
 function ViewFallback() {
@@ -41,8 +41,8 @@ export default function AppShell() {
         return <TalentView />
       case 'documents':
         return <DocumentsView />
-      case 'settings':
-        return <SettingsView />
+      case 'author':
+        return <AuthorView />
       default:
         return <DashboardView />
     }

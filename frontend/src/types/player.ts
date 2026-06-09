@@ -38,7 +38,7 @@ export type AppView =
   | 'compare'
   | 'talent'
   | 'documents'
-  | 'settings'
+  | 'author'
 
 export interface ScrapePlayerResponse {
   player: Player

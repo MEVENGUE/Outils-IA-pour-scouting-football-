@@ -6,7 +6,7 @@ import {
   LayoutDashboard,
   Radar,
   Search,
-  Settings,
+  UserCircle,
   Sparkles,
   Star,
   Users,
@@ -30,7 +30,7 @@ const NAV: {
   { id: 'compare', title: 'Compare Players', description: 'Comparaison', icon: Users },
   { id: 'talent', title: 'Talent Discovery', description: 'Base de données', icon: Radar },
   { id: 'documents', title: 'Document Analysis', description: 'Centre documentaire', icon: BarChart3 },
-  { id: 'settings', title: 'Settings', description: 'Configuration', icon: Settings },
+  { id: 'author', title: 'Informations auteur', description: 'FRANCK MEVENGUE', icon: UserCircle },
 ]
 
 export default function Sidebar() {
@@ -40,8 +40,8 @@ export default function Sidebar() {
   return (
     <aside className="sidebar glass">
       <div className="sidebar-brand">
-        <div className="brand-icon">
-          <Globe2 size={22} />
+        <div className="brand-icon brand-logo">
+          <img src="/x-scout-logo.jpg" alt="X-SCOUT" />
         </div>
         <div>
           <strong>X-SCOUT AI</strong>
