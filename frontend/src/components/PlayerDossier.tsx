@@ -1,30 +1,15 @@
-import type { Player } from '../App'
+import type { AiStatus, Player } from '../App'
 import './PlayerDossier.css'
 
 interface PlayerDossierProps {
   player: Player | null
   loading: boolean
   error: string | null
+  aiStatus: AiStatus
 }
 
-export default function PlayerDossier({ player, loading, error }: PlayerDossierProps) {
-  if (loading) {
-    return (
-      <div className="player-dossier">
-        <div className="loading">Chargement des données du joueur...</div>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="player-dossier">
-        <div className="error">{error}</div>
-      </div>
-    )
-  }
-
-  if (!player) {
+export default function PlayerDossier({ player, loading, error, aiStatus }: PlayerDossierProps) {
+  if (!player && !loading && !error) {
     return (
       <div className="player-dossier">
         <h2>Dossier Joueur</h2>
@@ -37,14 +22,35 @@ export default function PlayerDossier({ player, loading, error }: PlayerDossierP
     )
   }
 
+  if (error && !player) {
+    return (
+      <div className="player-dossier">
+        <div className="error">{error}</div>
+      </div>
+    )
+  }
+
+  if (!player) {
+    return (
+      <div className="player-dossier">
+        <div className="loading">Chargement des données du joueur...</div>
+      </div>
+    )
+  }
+
+  const statsAvailable = player.stats_available ?? false
+
   return (
     <div className="player-dossier">
       <h2>Dossier Joueur</h2>
-      
+
+      {loading && <div className="loading-banner">Mise à jour des données...</div>}
+      {error && <div className="error-inline">{error}</div>}
+
       <div className="player-header">
         {player.image_url && (
-          <img 
-            src={player.image_url} 
+          <img
+            src={player.image_url}
             alt={player.name}
             className="player-image"
             onError={(e) => {
@@ -58,7 +64,7 @@ export default function PlayerDossier({ player, loading, error }: PlayerDossierP
       <div className="player-info">
         <div className="info-item">
           <span className="info-label">Âge:</span>
-          <span className="info-value">{player.age || 'N/A'} ans</span>
+          <span className="info-value">{player.age ?? 'N/A'} ans</span>
         </div>
         <div className="info-item">
           <span className="info-label">Nationalité:</span>
@@ -84,52 +90,60 @@ export default function PlayerDossier({ player, loading, error }: PlayerDossierP
 
       <div className="player-stats">
         <h3>Statistiques</h3>
+        {!statsAvailable && (
+          <p className="stats-unavailable">
+            Statistiques saison en cours indisponibles pour le moment.
+          </p>
+        )}
         <div className="stats-grid">
           <div className="stat-item">
-            <span className="stat-value">{player.goals || 0}</span>
+            <span className="stat-value">{player.goals ?? 0}</span>
             <span className="stat-label">Buts</span>
           </div>
           <div className="stat-item">
-            <span className="stat-value">{player.assists || 0}</span>
+            <span className="stat-value">{player.assists ?? 0}</span>
             <span className="stat-label">Passes décisives</span>
           </div>
           <div className="stat-item">
-            <span className="stat-value">{player.appearances || 0}</span>
+            <span className="stat-value">{player.appearances ?? 0}</span>
             <span className="stat-label">Matchs</span>
           </div>
         </div>
-        
-        {/* Graphiques de performance */}
-        {player.appearances && player.appearances > 0 && (
+
+        {statsAvailable && player.appearances && player.appearances > 0 && (
           <div className="stats-charts">
             <div className="chart-item">
               <h4>Efficacité offensive</h4>
               <div className="progress-bar-container">
                 <div className="progress-bar">
-                  <div 
+                  <div
                     className="progress-fill goals-progress"
-                    style={{ 
-                      width: `${Math.min(100, ((player.goals || 0) / player.appearances) * 100)}%` 
+                    style={{
+                      width: `${Math.min(100, ((player.goals || 0) / player.appearances) * 100)}%`,
                     }}
                   >
-                    <span>Buts/match: {((player.goals || 0) / player.appearances).toFixed(2)}</span>
+                    <span>
+                      Buts/match: {((player.goals || 0) / player.appearances).toFixed(2)}
+                    </span>
                   </div>
                 </div>
               </div>
               <div className="progress-bar-container">
                 <div className="progress-bar">
-                  <div 
+                  <div
                     className="progress-fill assists-progress"
-                    style={{ 
-                      width: `${Math.min(100, ((player.assists || 0) / player.appearances) * 100)}%` 
+                    style={{
+                      width: `${Math.min(100, ((player.assists || 0) / player.appearances) * 100)}%`,
                     }}
                   >
-                    <span>Passes/match: {((player.assists || 0) / player.appearances).toFixed(2)}</span>
+                    <span>
+                      Passes/match: {((player.assists || 0) / player.appearances).toFixed(2)}
+                    </span>
                   </div>
                 </div>
               </div>
             </div>
-            
+
             <div className="chart-item">
               <h4>Contribution totale</h4>
               <div className="contribution-circle">
@@ -138,7 +152,8 @@ export default function PlayerDossier({ player, loading, error }: PlayerDossierP
                 </div>
                 <div className="contribution-label">Buts + Passes</div>
                 <div className="contribution-per-match">
-                  {(((player.goals || 0) + (player.assists || 0)) / player.appearances).toFixed(2)} par match
+                  {(((player.goals || 0) + (player.assists || 0)) / player.appearances).toFixed(2)}{' '}
+                  par match
                 </div>
               </div>
             </div>
@@ -146,13 +161,21 @@ export default function PlayerDossier({ player, loading, error }: PlayerDossierP
         )}
       </div>
 
-      {player.scouting_report && (
+      {player.scouting_report ? (
         <div className="scouting-report">
           <h3>Rapport de Scouting</h3>
           <div className="report-content">{player.scouting_report}</div>
+        </div>
+      ) : (
+        <div className="scouting-report scouting-report-empty">
+          <h3>Rapport de Scouting</h3>
+          <p className="report-placeholder">
+            {aiStatus === 'unconfigured'
+              ? 'Configurez OPENAI_API_KEY pour générer un rapport IA détaillé.'
+              : 'Rapport IA indisponible pour ce joueur.'}
+          </p>
         </div>
       )}
     </div>
   )
 }
-

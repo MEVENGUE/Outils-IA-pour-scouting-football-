@@ -1,73 +1,102 @@
-import { useState, useEffect } from 'react'
-import type { Player } from '../App'
+import { useEffect, useState } from 'react'
+import type { AiStatus, Player } from '../App'
 import './AIScoutingAssistant.css'
 
 interface AIScoutingAssistantProps {
   player: Player | null
   onPlayerRequest: (playerName: string) => void
   loading: boolean
+  aiStatus: AiStatus
 }
 
-export default function AIScoutingAssistant({ player, onPlayerRequest, loading }: AIScoutingAssistantProps) {
+interface PlayerSummary {
+  name: string
+  club: string
+  nationality: string
+  market_value: string
+  age: number | null
+  position: string | null
+  height: string | null
+  goals: number
+  assists: number
+  appearances: number
+  stats_available: boolean
+  image_url: string | null
+  scouting_report?: string
+}
+
+function buildPlayerSummary(player: Player): string {
+  const summary: PlayerSummary = {
+    name: player.name,
+    club: player.current_club || 'N/A',
+    nationality: player.nationality || 'N/A',
+    market_value: player.market_value || 'N/A',
+    age: player.age ?? null,
+    position: player.position ?? null,
+    height: player.height ?? null,
+    goals: player.goals ?? 0,
+    assists: player.assists ?? 0,
+    appearances: player.appearances ?? 0,
+    stats_available: player.stats_available ?? false,
+    image_url: player.image_url ?? null,
+  }
+
+  if (player.scouting_report) {
+    summary.scouting_report = player.scouting_report
+  }
+
+  const lines = [
+    `Profil trouvé pour ${summary.name}.`,
+    `Club: ${summary.club}`,
+    `Nationalité: ${summary.nationality}`,
+    `Poste: ${summary.position || 'N/A'}`,
+    `Âge: ${summary.age ?? 'N/A'}`,
+    `Valeur marchande: ${summary.market_value}`,
+  ]
+
+  if (summary.stats_available) {
+    lines.push(
+      `Stats: ${summary.goals} buts, ${summary.assists} passes, ${summary.appearances} matchs.`,
+    )
+  } else {
+    lines.push('Stats saison: indisponibles pour le moment.')
+  }
+
+  if (summary.scouting_report) {
+    lines.push('', 'Rapport IA:', summary.scouting_report)
+  }
+
+  return lines.join('\n')
+}
+
+export default function AIScoutingAssistant({
+  player,
+  onPlayerRequest,
+  loading,
+  aiStatus,
+}: AIScoutingAssistantProps) {
   const [inputValue, setInputValue] = useState('')
-  const [messages, setMessages] = useState<Array<{ role: 'user' | 'ai', content: string }>>([])
+  const [messages, setMessages] = useState<Array<{ role: 'user' | 'ai'; content: string }>>([])
 
   useEffect(() => {
     if (player) {
-      // Affiche les données du joueur comme message de l'IA
-      const playerData: any = {
-        name: player.name || 'N/A',
-        club: player.current_club || 'N/A',
-        market_value: player.market_value || 'N/A',
-        image_url: player.image_url || null,
-        goals: player.goals || 0,
-        assists: player.assists || 0,
-        appearances: player.appearances || 0,
-        age: player.age || null,
-        position: player.position || null,
-        height: player.height || null
-      }
-      
-      // Ajoute les champs optionnels seulement s'ils existent
-      // Toujours afficher la nationalité si disponible, même si c'est "Unknown"
-      if (player.nationality) {
-        playerData.nationality = player.nationality
-      } else {
-        // Affiche "Unknown" si la nationalité n'est pas disponible
-        playerData.nationality = "Unknown"
-      }
-      if (player.age) {
-        playerData.age = player.age
-      }
-      if (player.position) {
-        playerData.position = player.position
-      }
-      if (player.height) {
-        playerData.height = player.height
-      }
-      if (player.scouting_report) {
-        playerData.scouting_report = player.scouting_report
-      }
-      
       setMessages([
         { role: 'user', content: player.name },
-        { role: 'ai', content: JSON.stringify(playerData, null, 2) }
+        { role: 'ai', content: buildPlayerSummary(player) },
       ])
     }
   }, [player])
 
-  const handleSend = async () => {
-    if (!inputValue.trim()) return
+  const handleSend = () => {
+    if (!inputValue.trim() || loading) return
 
     const playerName = inputValue.trim()
     setInputValue('')
-    setMessages(prev => [...prev, { role: 'user', content: playerName }])
-    
-    // Appelle la fonction de recherche de joueur
+    setMessages((prev) => [...prev, { role: 'user', content: playerName }])
     onPlayerRequest(playerName)
   }
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSend()
@@ -77,7 +106,13 @@ export default function AIScoutingAssistant({ player, onPlayerRequest, loading }
   return (
     <div className="ai-assistant">
       <h2>IA Scouting Assistant</h2>
-      
+
+      {aiStatus === 'unconfigured' && (
+        <p className="ai-status-banner">
+          Mode sans IA : configurez OPENAI_API_KEY pour les rapports avancés.
+        </p>
+      )}
+
       <div className="chat-messages">
         {messages.length === 0 && (
           <div className="empty-chat">
@@ -86,15 +121,9 @@ export default function AIScoutingAssistant({ player, onPlayerRequest, loading }
         )}
         {messages.map((msg, idx) => (
           <div key={idx} className={`message ${msg.role}`}>
-            <div className="message-label">
-              {msg.role === 'user' ? 'Vous:' : 'Agent IA:'}
-            </div>
+            <div className="message-label">{msg.role === 'user' ? 'Vous:' : 'Agent IA:'}</div>
             <div className="message-content">
-              {msg.role === 'ai' && msg.content.startsWith('{') ? (
-                <pre>{msg.content}</pre>
-              ) : (
-                <p>{msg.content}</p>
-              )}
+              <p className="message-text">{msg.content}</p>
             </div>
           </div>
         ))}
@@ -112,13 +141,13 @@ export default function AIScoutingAssistant({ player, onPlayerRequest, loading }
         <input
           type="text"
           className="chat-input"
-          placeholder="Demandez un rapport sur"
+          placeholder="Rechercher un joueur..."
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
-          onKeyPress={handleKeyPress}
+          onKeyDown={handleKeyDown}
           disabled={loading}
         />
-        <button 
+        <button
           className="send-button"
           onClick={handleSend}
           disabled={loading || !inputValue.trim()}
@@ -129,4 +158,3 @@ export default function AIScoutingAssistant({ player, onPlayerRequest, loading }
     </div>
   )
 }
-

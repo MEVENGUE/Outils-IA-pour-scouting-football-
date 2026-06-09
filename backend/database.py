@@ -142,29 +142,36 @@ def save_player_to_db(player_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             conn.close()
             return None
 
-        # Construit la requête SQL de manière plus sûre
-        columns = list(valid_data.keys())
-        if not columns:
-            print("-> Aucune colonne valide pour la sauvegarde")
-            conn.close()
-            return None
-            
-        placeholders = ', '.join('?' * len(columns))
-        columns_str = ', '.join(columns)
-        
-        # Utilise INSERT OR REPLACE de manière plus sûre
-        sql = f"INSERT OR REPLACE INTO players ({columns_str}) VALUES ({placeholders})"
-        
-        # Prépare les valeurs dans le bon ordre et convertit None en NULL SQL
-        values = []
-        for col in columns:
-            val = valid_data[col]
-            # Convertit None en chaîne vide pour les champs TEXT
-            if val is None:
-                val = ''
-            values.append(val)
+        player_name = valid_data['name']
+        cur.execute("SELECT * FROM players WHERE name = ? LIMIT 1", (player_name,))
+        existing_row = cur.fetchone()
 
-        cur.execute(sql, values)
+        if existing_row:
+            existing = dict(existing_row)
+            merged = {**existing}
+            for key, value in valid_data.items():
+                if key == 'id':
+                    continue
+                if value is not None and value != '':
+                    merged[key] = value
+
+            update_cols = [k for k in merged.keys() if k not in ('id', 'name', 'created_at')]
+            if update_cols:
+                set_clause = ', '.join(f"{col} = ?" for col in update_cols)
+                if 'updated_at' in table_columns:
+                    set_clause += ", updated_at = CURRENT_TIMESTAMP"
+                values = [merged[col] for col in update_cols] + [player_name]
+                cur.execute(f"UPDATE players SET {set_clause} WHERE name = ?", values)
+        else:
+            columns = list(valid_data.keys())
+            placeholders = ', '.join('?' * len(columns))
+            columns_str = ', '.join(columns)
+            values = [valid_data[col] if valid_data[col] is not None else '' for col in columns]
+            cur.execute(
+                f"INSERT INTO players ({columns_str}) VALUES ({placeholders})",
+                values,
+            )
+
         conn.commit()
         
         # Récupère le joueur sauvegardé
@@ -235,8 +242,17 @@ def get_player_by_name(player_name: str) -> Optional[Dict[str, Any]]:
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute("SELECT * FROM players WHERE name LIKE ? LIMIT 1", (f"%{player_name}%",))
+        cur.execute(
+            "SELECT * FROM players WHERE name = ? COLLATE NOCASE LIMIT 1",
+            (player_name.strip(),),
+        )
         row = cur.fetchone()
+        if not row:
+            cur.execute(
+                "SELECT * FROM players WHERE name LIKE ? ORDER BY updated_at DESC LIMIT 1",
+                (f"%{player_name.strip()}%",),
+            )
+            row = cur.fetchone()
         conn.close()
         if row:
             return dict(row)

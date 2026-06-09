@@ -51,8 +51,15 @@ app.add_middleware(
 import os
 from dotenv import load_dotenv
 
-# Charge les variables d'environnement depuis un fichier .env (si présent)
-load_dotenv()
+def _load_env_files() -> None:
+    for env_path in (
+        os.path.join(BASE_DIR, '.env'),
+        os.path.join(BASE_DIR, '..', '.env'),
+    ):
+        if os.path.isfile(env_path):
+            load_dotenv(env_path, override=False)
+
+_load_env_files()
 
 # Récupère la clé API depuis la variable d'environnement
 # Si la variable n'existe pas, utilise une valeur par défaut vide (à configurer)
@@ -64,6 +71,14 @@ if not OPENAI_API_KEY:
     print("⚠️  ATTENTION: OPENAI_API_KEY n'est pas configurée!")
     print("   Configurez-la via une variable d'environnement ou un fichier .env")
     print("   Voir README.md pour plus d'informations")
+
+def openai_available() -> bool:
+    return bool(OPENAI_API_KEY and OPENAI_API_KEY.strip())
+
+def _parse_error_detail(detail) -> str:
+    if isinstance(detail, list):
+        return "; ".join(str(item) for item in detail)
+    return str(detail)
 
 # --- Route racine ---
 @app.get("/")
@@ -91,7 +106,11 @@ def health_check():
         conn = get_db_connection()
         conn.execute("SELECT 1")
         conn.close()
-        return {"status": "healthy", "database": "connected"}
+        return {
+            "status": "healthy",
+            "database": "connected",
+            "openai": "configured" if openai_available() else "unconfigured",
+        }
     except Exception as e:
         return JSONResponse(
             status_code=503,
@@ -102,6 +121,12 @@ def health_check():
 @app.post("/ai")
 async def ai_proxy(request: Request):
     """Proxy pour les requêtes vers l'API OpenAI."""
+    if not openai_available():
+        raise HTTPException(
+            status_code=503,
+            detail="OpenAI API key is not configured. Set OPENAI_API_KEY in your environment.",
+        )
+
     body = await request.json()
     try:
         # Adaptation du format pour OpenAI Chat Completions
@@ -206,6 +231,9 @@ def normalize_country_name_with_openai(country_name):
         return country_name
     
     # Utilise OpenAI pour normaliser si nécessaire
+    if not openai_available():
+        return country_name
+
     try:
         headers = {
             "Authorization": f"Bearer {OPENAI_API_KEY}",
@@ -239,7 +267,7 @@ Réponds uniquement le nom normalisé:"""
 
 def generate_scouting_report_with_openai(player_data):
     """Génère un rapport de scouting détaillé avec OpenAI basé sur les données du joueur, incluant analyses avancées et prédictions."""
-    if not player_data:
+    if not player_data or not openai_available():
         return None
     
     try:
@@ -311,27 +339,21 @@ Le rapport doit être en français, très professionnel, détaillé (environ 400
 
 def enrich_player_data_with_openai(player_data):
     """Enrichit les données du joueur avec OpenAI si certaines informations manquent."""
-    if not player_data or not player_data.get('name'):
+    if not player_data or not player_data.get('name') or not openai_available():
         return player_data
     
-    # Vérifie si des données importantes manquent
+    stats_missing = not player_data.get('stats_available', False)
     needs_enrichment = (
-        (not player_data.get('goals') or player_data.get('goals') == 0) and
-        (not player_data.get('assists') or player_data.get('assists') == 0) and
-        (not player_data.get('appearances') or player_data.get('appearances') == 0)
-    ) or not player_data.get('image_url') or not player_data.get('nationality')
+        stats_missing or not player_data.get('image_url') or not player_data.get('nationality')
+    )
     
     if not needs_enrichment:
         return player_data
     
     try:
         missing_fields = []
-        if not player_data.get('goals') or player_data.get('goals') == 0:
-            missing_fields.append("goals")
-        if not player_data.get('assists') or player_data.get('assists') == 0:
-            missing_fields.append("assists")
-        if not player_data.get('appearances') or player_data.get('appearances') == 0:
-            missing_fields.append("appearances")
+        if stats_missing:
+            missing_fields.extend(["goals", "assists", "appearances"])
         if not player_data.get('image_url'):
             missing_fields.append("image_url")
         if not player_data.get('nationality'):
@@ -387,12 +409,15 @@ Si tu ne connais pas une valeur, mets 0 pour les nombres, null pour l'URL, ou "U
         try:
             enriched_data = json.loads(enriched_text)
             # Met à jour seulement les champs manquants
-            if 'goals' in enriched_data and (not player_data.get('goals') or player_data.get('goals') == 0):
-                player_data['goals'] = enriched_data.get('goals', 0)
-            if 'assists' in enriched_data and (not player_data.get('assists') or player_data.get('assists') == 0):
-                player_data['assists'] = enriched_data.get('assists', 0)
-            if 'appearances' in enriched_data and (not player_data.get('appearances') or player_data.get('appearances') == 0):
-                player_data['appearances'] = enriched_data.get('appearances', 0)
+            if stats_missing:
+                if 'goals' in enriched_data and not player_data.get('stats_available'):
+                    player_data['goals'] = enriched_data.get('goals', 0)
+                if 'assists' in enriched_data and not player_data.get('stats_available'):
+                    player_data['assists'] = enriched_data.get('assists', 0)
+                if 'appearances' in enriched_data and not player_data.get('stats_available'):
+                    player_data['appearances'] = enriched_data.get('appearances', 0)
+                if any(player_data.get(field, 0) for field in ('goals', 'assists', 'appearances')):
+                    player_data['stats_available'] = True
             if 'image_url' in enriched_data and not player_data.get('image_url'):
                 player_data['image_url'] = enriched_data.get('image_url')
             if 'nationality' in enriched_data and not player_data.get('nationality'):
@@ -447,50 +472,51 @@ def trigger_player_scraping(player_req: PlayerRequest):
             normalized_nationality = normalize_country_name_with_openai(player_data['nationality'])
             player_data['nationality'] = normalized_nationality or player_data['nationality']
         elif not player_data.get('nationality') or player_data.get('nationality', '').lower() == 'unknown':
-            # Si la nationalité est "Unknown", essaie de la trouver avec OpenAI en utilisant le nom et le club
-            print(f"-> Tentative de trouver la nationalité pour {player_data.get('name')} via OpenAI...")
-            try:
-                nationality_prompt = f"""Quelle est la nationalité de {player_data.get('name', 'N/A')} qui joue pour {player_data.get('current_club', 'N/A')}? 
+            if openai_available():
+                print(f"-> Tentative de trouver la nationalité pour {player_data.get('name')} via OpenAI...")
+                try:
+                    nationality_prompt = f"""Quelle est la nationalité de {player_data.get('name', 'N/A')} qui joue pour {player_data.get('current_club', 'N/A')}? 
 Réponds UNIQUEMENT avec le nom du pays en français ou en anglais (ex: "Espagne" ou "Spain", "France", "Cameroun" ou "Cameroon").
 Si tu ne connais pas, réponds "Unknown". Réponds uniquement le nom du pays, sans texte supplémentaire."""
-                
-                headers = {
-                    "Authorization": f"Bearer {OPENAI_API_KEY}",
-                    "Content-Type": "application/json"
-                }
-                
-                openai_body = {
-                    "model": "gpt-4o-mini",
-                    "messages": [
-                        {"role": "user", "content": nationality_prompt}
-                    ],
-                    "temperature": 0.1,
-                    "max_tokens": 20
-                }
-                
-                resp = requests.post(OPENAI_API_URL, json=openai_body, headers=headers, timeout=10)
-                resp.raise_for_status()
-                response_data = resp.json()
-                found_nationality = response_data.get('choices', [{}])[0].get('message', {}).get('content', '').strip()
-                
-                # Nettoie la réponse
-                found_nationality = re.sub(r'["\']', '', found_nationality).strip()
-                
-                if found_nationality and found_nationality.lower() != 'unknown':
-                    player_data['nationality'] = found_nationality
-                    print(f"-> Nationalité trouvée via OpenAI: {found_nationality}")
-                    # Normalise la nationalité trouvée
-                    normalized_nationality = normalize_country_name_with_openai(found_nationality)
-                    player_data['nationality'] = normalized_nationality or found_nationality
-            except Exception as e:
-                print(f"-> Erreur lors de la recherche de nationalité: {e}")
+                    
+                    headers = {
+                        "Authorization": f"Bearer {OPENAI_API_KEY}",
+                        "Content-Type": "application/json"
+                    }
+                    
+                    openai_body = {
+                        "model": "gpt-4o-mini",
+                        "messages": [
+                            {"role": "user", "content": nationality_prompt}
+                        ],
+                        "temperature": 0.1,
+                        "max_tokens": 20
+                    }
+                    
+                    resp = requests.post(OPENAI_API_URL, json=openai_body, headers=headers, timeout=10)
+                    resp.raise_for_status()
+                    response_data = resp.json()
+                    found_nationality = response_data.get('choices', [{}])[0].get('message', {}).get('content', '').strip()
+                    
+                    found_nationality = re.sub(r'["\']', '', found_nationality).strip()
+                    
+                    if found_nationality and found_nationality.lower() != 'unknown':
+                        player_data['nationality'] = found_nationality
+                        print(f"-> Nationalité trouvée via OpenAI: {found_nationality}")
+                        normalized_nationality = normalize_country_name_with_openai(found_nationality)
+                        player_data['nationality'] = normalized_nationality or found_nationality
+                except Exception as e:
+                    print(f"-> Erreur lors de la recherche de nationalité: {e}")
         
         # Génération du rapport de scouting avec OpenAI
         scouting_report = generate_scouting_report_with_openai(player_data)
+        ai_status = "ready" if openai_available() else "unconfigured"
         if scouting_report:
             player_data['scouting_report'] = scouting_report
             # Sauvegarde le rapport dans la base de données
             update_player_field(player_data.get('name'), 'scouting_report', scouting_report)
+        elif openai_available():
+            ai_status = "report_unavailable"
         
         # S'assure que toutes les valeurs numériques sont correctes
         if 'goals' not in player_data or player_data['goals'] is None:
@@ -534,10 +560,14 @@ Si tu ne connais pas, réponds "Unknown". Réponds uniquement le nom du pays, sa
             'assists': player_data.get('assists', 0),
             'appearances': player_data.get('appearances', 0),
             'image_url': player_data.get('image_url'),
-            'scouting_report': player_data.get('scouting_report')
+            'scouting_report': player_data.get('scouting_report'),
+            'stats_available': bool(player_data.get('stats_available', False)),
         }
         
-        return {"player": normalized_player}
+        return {
+            "player": normalized_player,
+            "ai_status": ai_status,
+        }
     except HTTPException:
         raise
     except Exception as e:

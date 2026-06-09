@@ -9,8 +9,11 @@ import time
 import os
 import sys
 import json
+import difflib
+import unicodedata
 from datetime import date, datetime
 from urllib.parse import quote
+from dotenv import load_dotenv
 
 # Configuration de la base de données SQLite
 # Utilise maintenant le module centralisé depuis backend
@@ -19,7 +22,7 @@ from urllib.parse import quote
 DB_PATH = os.path.join(os.path.dirname(__file__), "players.db")
 
 # Import du module de base de données centralisé
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'backend'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 try:
     from database import init_db, save_player_to_db as db_save_player_to_db, get_db_connection
     USE_CENTRALIZED_DB = True
@@ -117,17 +120,31 @@ def init_db_local():
     conn.close()
 
 # En-tête User-Agent pour imiter un navigateur
-HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"}
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    ),
+    "Accept-Language": "en-US,en;q=0.9,fr;q=0.8",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+}
 
-# Configuration OpenAI pour la normalisation des noms
-# ⚠️ SÉCURITÉ : Ne pas commiter la clé API dans le code !
-# Configurez votre clé API OpenAI via une variable d'environnement ou un fichier .env
-# Pour obtenir une clé : https://platform.openai.com/api-keys
-import os
-from dotenv import load_dotenv
+RESERVE_TEAM_PATTERN = re.compile(
+    r"\b(II|III|IV|B|U\d{2}|Youth|Reserve|Academy|Amateurs|Juniors)\b",
+    re.IGNORECASE,
+)
 
-# Charge les variables d'environnement depuis un fichier .env (si présent)
-load_dotenv()
+def _load_env_files() -> None:
+    backend_dir = os.path.join(os.path.dirname(__file__), '..')
+    repo_root = os.path.join(backend_dir, '..')
+    for env_path in (
+        os.path.join(backend_dir, '.env'),
+        os.path.join(repo_root, '.env'),
+    ):
+        if os.path.isfile(env_path):
+            load_dotenv(env_path, override=False)
+
+_load_env_files()
 
 # Récupère la clé API depuis la variable d'environnement
 # Si la variable n'existe pas, utilise une valeur par défaut vide (à configurer)
@@ -139,6 +156,61 @@ if not OPENAI_API_KEY:
     print("⚠️  ATTENTION: OPENAI_API_KEY n'est pas configurée dans scraper.py!")
     print("   Configurez-la via une variable d'environnement ou un fichier .env")
 
+def openai_available() -> bool:
+    return bool(OPENAI_API_KEY and OPENAI_API_KEY.strip())
+
+def _normalize_name_for_match(name: str) -> str:
+    if not name:
+        return ""
+    normalized = unicodedata.normalize("NFD", name.lower())
+    normalized = "".join(ch for ch in normalized if unicodedata.category(ch) != "Mn")
+    normalized = re.sub(r"[^\w\s]", " ", normalized)
+    return re.sub(r"\s+", " ", normalized).strip()
+
+def _name_similarity(left: str, right: str) -> float:
+    left_norm = _normalize_name_for_match(left)
+    right_norm = _normalize_name_for_match(right)
+    if not left_norm or not right_norm:
+        return 0.0
+    if left_norm == right_norm:
+        return 1.0
+    return difflib.SequenceMatcher(None, left_norm, right_norm).ratio()
+
+def _is_reserve_team(label: str) -> bool:
+    if not label:
+        return False
+    return bool(RESERVE_TEAM_PATTERN.search(label))
+
+def _absolute_href(href: str, base: str = "https://www.transfermarkt.com") -> str:
+    if not href:
+        return ""
+    if href.startswith("http"):
+        return href
+    return base + href
+
+def _score_tm_candidate(link_text: str, href: str, query_name: str) -> float:
+    if _is_reserve_team(link_text) or _is_reserve_team(href):
+        return -1.0
+    score = _name_similarity(link_text, query_name)
+    if score >= 0.95:
+        score += 0.05
+    return score
+
+def _pick_best_tm_link(links, query_name: str) -> str | None:
+    candidates: list[tuple[float, str]] = []
+    for link in links:
+        href = link.get("href", "")
+        link_text = link.get_text(strip=True)
+        if not href:
+            continue
+        score = _score_tm_candidate(link_text, href, query_name)
+        if score >= 0.55:
+            candidates.append((score, _absolute_href(href)))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: item[0], reverse=True)
+    return candidates[0][1]
+
 def normalize_player_name_with_openai(player_name):
     """
     Utilise OpenAI pour corriger et normaliser un nom de joueur mal écrit ou avec des accents.
@@ -146,6 +218,9 @@ def normalize_player_name_with_openai(player_name):
     """
     if not player_name or len(player_name.strip()) < 2:
         return player_name
+
+    if not openai_available():
+        return player_name.strip()
     
     # Si le nom semble déjà correct (contient des lettres normales), on peut le garder tel quel
     # Mais on va quand même demander à OpenAI de le normaliser pour être sûr
@@ -219,51 +294,49 @@ def get_player_page_url(player_name, site):
     """Trouve l'URL de la page du joueur sur Transfermarkt avec recherche améliorée."""
     if site == "transfermarkt":
         try:
-            # Normalise le nom avec OpenAI pour corriger les erreurs d'orthographe et accents
-            normalized_name = normalize_player_name_with_openai(player_name)
-            # Nettoie le nom pour la recherche
+            normalized_name = (
+                normalize_player_name_with_openai(player_name)
+                if openai_available()
+                else player_name.strip()
+            )
             clean_name = normalized_name.strip()
-            search_url = f"https://www.transfermarkt.com/schnellsuche/ergebnis/schnellsuche?query={clean_name.replace(' ', '+')}"
+            search_url = (
+                "https://www.transfermarkt.com/schnellsuche/ergebnis/schnellsuche"
+                f"?query={clean_name.replace(' ', '+')}"
+            )
             resp = requests.get(search_url, headers=HEADERS, timeout=10)
             resp.raise_for_status()
             soup = BeautifulSoup(resp.text, 'html.parser')
 
-            # Méthode 1: Cherche dans la section Players
-            player_header = soup.find('div', class_='table-header', string=re.compile(r'\s*Players\s*', re.IGNORECASE))
+            player_header = soup.find(
+                'div',
+                class_='table-header',
+                string=re.compile(r'\s*Players\s*', re.IGNORECASE),
+            )
             if not player_header:
-                # Essaie avec différentes variantes
-                player_header = soup.find('div', class_='table-header', string=re.compile(r'Spieler|Joueurs', re.IGNORECASE))
-            
+                player_header = soup.find(
+                    'div',
+                    class_='table-header',
+                    string=re.compile(r'Spieler|Joueurs', re.IGNORECASE),
+                )
+
             if player_header:
                 parent_box = player_header.find_parent('div', class_='box')
                 if parent_box:
-                    result_link = parent_box.select_one('td.hauptlink a.spielprofil_tooltip')
-                    if result_link and result_link.get('href'):
-                        href = result_link['href']
-                        if not href.startswith('http'):
-                            href = "https://www.transfermarkt.com" + href
-                        return href
-            
-            # Méthode 2: Cherche tous les liens de profil de joueur
+                    section_links = parent_box.select('td.hauptlink a.spielprofil_tooltip')
+                    best_href = _pick_best_tm_link(section_links, clean_name)
+                    if best_href:
+                        return best_href
+
             all_player_links = soup.select('a.spielprofil_tooltip')
-            if all_player_links:
-                # Prend le premier résultat qui semble correspondre
-                for link in all_player_links[:5]:  # Limite aux 5 premiers résultats
-                    href = link.get('href', '')
-                    link_text = link.get_text(strip=True)
-                    # Vérifie si le nom correspond approximativement
-                    if href and ('spieler' in href.lower() or 'player' in href.lower()):
-                        if not href.startswith('http'):
-                            href = "https://www.transfermarkt.com" + href
-                        return href
-            
-            # Méthode 3: Fallback - cherche n'importe quel lien de profil
-            first_result = soup.select_one('a[href*="/spieler/"]')
-            if first_result and first_result.get('href'):
-                href = first_result['href']
-                if not href.startswith('http'):
-                    href = "https://www.transfermarkt.com" + href
-                return href
+            best_href = _pick_best_tm_link(all_player_links[:10], clean_name)
+            if best_href:
+                return best_href
+
+            fallback_links = soup.select('a[href*="/spieler/"]')
+            best_href = _pick_best_tm_link(fallback_links[:10], clean_name)
+            if best_href:
+                return best_href
 
         except requests.exceptions.Timeout:
             print(f"Timeout lors de la recherche pour {player_name}")
@@ -427,18 +500,73 @@ def scrape_transfermarkt(url: str):
             if m_as and not data.get("assists"):
                 data["assists"] = int(m_as.group(2))
 
-        # Defaults
-        data.setdefault("appearances", 0)
-        data.setdefault("goals", 0)
-        data.setdefault("assists", 0)
-        data.setdefault("minutes_played", 0)
+        _parse_tm_performance_stats(soup, data)
 
-        print(f"-> Profil TM: {data.get('name')} | age={data.get('age')} | pos={data.get('position')} | apps={data.get('appearances')} g={data.get('goals')} a={data.get('assists')}")
+        if data.get("appearances") or data.get("goals") or data.get("assists"):
+            data["stats_source"] = "transfermarkt"
+
+        print(
+            f"-> Profil TM: {data.get('name')} | age={data.get('age')} | "
+            f"club={data.get('current_club')} | pos={data.get('position')} | "
+            f"apps={data.get('appearances')} g={data.get('goals')} a={data.get('assists')}"
+        )
 
     except Exception as e:
         print(f"Erreur scraping Transfermarkt ({url}): {e}")
 
     return data
+
+def _parse_tm_performance_stats(soup: BeautifulSoup, data: dict) -> None:
+    """Extrait les stats depuis les tableaux de performance Transfermarkt."""
+    stats_tables = soup.select(
+        'table.items, table.data-table, .responsive-table, table[class*="items"]'
+    )
+
+    for table in stats_tables:
+        headers: list[str] = []
+        thead = table.select_one('thead')
+        header_rows = thead.select('tr') if thead else table.select('tr.header, tr:first-child')
+
+        for header_row in header_rows[:2]:
+            header_cells = header_row.select('th, td')
+            if not header_cells:
+                continue
+            headers = [cell.get_text(strip=True).lower() for cell in header_cells]
+            if any(
+                term in ' '.join(headers)
+                for term in ['spiele', 'matches', 'appearances', 'matchs', 'goals', 'tore', 'assists', 'vorlagen']
+            ):
+                break
+
+        tbody = table.select_one('tbody')
+        data_rows = tbody.select('tr') if tbody else table.select('tr:not(.header)')
+
+        for row in data_rows[:5]:
+            cells = row.select('td')
+            if len(cells) < 3:
+                continue
+
+            for index, cell in enumerate(cells):
+                cell_text = cell.get_text(strip=True)
+                clean_text = re.sub(r'[^\d.]', '', cell_text) if cell_text else ''
+                if not clean_text or not clean_text.replace('.', '').isdigit():
+                    continue
+
+                try:
+                    num = int(float(clean_text))
+                except ValueError:
+                    continue
+
+                header = headers[index] if index < len(headers) else ''
+                if any(term in header for term in ['spiele', 'matches', 'appearances', 'matchs', 'games']):
+                    if not data.get('appearances'):
+                        data['appearances'] = num
+                elif any(term in header for term in ['tore', 'goals', 'buts']):
+                    if not data.get('goals'):
+                        data['goals'] = num
+                elif any(term in header for term in ['vorlagen', 'assists', 'passes']):
+                    if not data.get('assists'):
+                        data['assists'] = num
 
 def _fbref_uncomment_tables(html: str) -> str:
     """FBref met parfois des tables dans des commentaires HTML <!-- ... -->"""
@@ -784,7 +912,7 @@ def wikidata_search_qid(player_name: str, lang: str = "en") -> str | None:
         "format": "json",
         "search": player_name,
         "language": lang,
-        "limit": 5,
+        "limit": 8,
         "type": "item"
     }
     r = requests.get(WIKIDATA_API, params=params, headers=HEADERS, timeout=10)
@@ -794,7 +922,20 @@ def wikidata_search_qid(player_name: str, lang: str = "en") -> str | None:
     results = data.get("search", [])
     if not results:
         return None
-    return results[0].get("id")
+
+    best_qid = None
+    best_score = 0.0
+    for result in results:
+        label = result.get("label", "")
+        description = (result.get("description") or "").lower()
+        score = _name_similarity(label, player_name)
+        if any(term in description for term in ("football", "soccer", "association football")):
+            score += 0.25
+        if score > best_score:
+            best_score = score
+            best_qid = result.get("id")
+
+    return best_qid if best_score >= 0.55 else None
 
 def wikidata_get_entity(qid: str) -> dict | None:
     url = WIKIDATA_ENTITY.format(qid=qid)
@@ -885,6 +1026,10 @@ def _wd_best_current_club_qid(entity: dict, qid: str) -> str | None:
         if not club_qid:
             continue
 
+        club_label = _wd_resolve_label(club_qid, "en") or ""
+        if _is_reserve_team(club_label):
+            continue
+
         end = get_qual_date(c, "P582")   # end time
         start = get_qual_date(c, "P580") # start time
 
@@ -896,8 +1041,19 @@ def _wd_best_current_club_qid(entity: dict, qid: str) -> str | None:
             elif best is None:
                 best = club_qid
 
+    if best:
+        return best
+
+    for c in claims:
+        club_qid = get_qid(c)
+        if not club_qid:
+            continue
+        club_label = _wd_resolve_label(club_qid, "en") or ""
+        if not _is_reserve_team(club_label):
+            return club_qid
+
     # fallback
-    return best or get_qid(claims[0])
+    return get_qid(claims[0])
 
 def wikidata_profile(player_name: str) -> dict | None:
     qid = wikidata_search_qid(player_name, lang="en")
@@ -961,6 +1117,18 @@ def merge_keep_existing(dst: dict, src: dict) -> dict:
         if v is not None and v != "":
             dst[k] = v
     return dst
+
+def merge_supplement(dst: dict, src: dict, protected_keys: set[str]) -> dict:
+    """Complète dst avec src sans écraser les champs déjà renseignés."""
+    for key, value in src.items():
+        if key in protected_keys and dst.get(key):
+            continue
+        if value is not None and value != "":
+            dst[key] = value
+    return dst
+
+def _has_stats(data: dict) -> bool:
+    return any(data.get(field) not in (None, 0, "") for field in ("goals", "assists", "appearances"))
 
 def current_fb_season(today: date | None = None) -> str:
     """Saison FBref probable (format YYYY-YYYY). On bascule en juillet."""
@@ -1086,60 +1254,83 @@ def save_player_to_db(player_data):
 
 def scrape_and_save_player_data(player_name: str):
     """
-    Pipeline robuste: Wikidata -> FBref -> Transfermarkt (optionnel)
+    Pipeline robuste: Transfermarkt -> Wikidata -> FBref
     """
     print(f"--- Lancement du scraping pour : {player_name} ---")
 
     try:
-        # 1) Normalisation nom (OpenAI)
-        normalized_name = normalize_player_name_with_openai(player_name)
+        normalized_name = (
+            normalize_player_name_with_openai(player_name)
+            if openai_available()
+            else player_name.strip()
+        )
         print(f"-> Nom normalisé: '{player_name}' -> '{normalized_name}'")
 
         all_data = {"name": normalized_name}
 
-        # 2) WIKIDATA d'abord (âge / poste / taille / club / image / nationalité)
+        # 1) Transfermarkt en premier (club, stats, valeur marchande)
         try:
-            wd = wikidata_profile(normalized_name)
+            tm_url = get_player_page_url(normalized_name, "transfermarkt")
+            if tm_url:
+                tm_data = scrape_transfermarkt(tm_url) or {}
+                all_data = merge_keep_existing(all_data, tm_data)
+                all_data["source_transfermarkt"] = tm_url
+                print(
+                    f"-> Transfermarkt OK: club={all_data.get('current_club')} "
+                    f"apps={all_data.get('appearances')} g={all_data.get('goals')} a={all_data.get('assists')}"
+                )
+            else:
+                print("-> Transfermarkt: aucun profil trouvé")
+        except Exception as e:
+            print(f"-> Erreur scraping Transfermarkt: {e}")
+
+        # 2) Wikidata pour compléter les champs manquants
+        try:
+            wd = wikidata_profile(all_data.get("name", normalized_name))
             if wd:
-                all_data = merge_keep_existing(all_data, wd)
-                print(f"-> Wikidata OK: age={all_data.get('age')} pos={all_data.get('position')} height={all_data.get('height')}")
+                protected = {"current_club", "market_value", "position", "position_tm"}
+                if _has_stats(all_data):
+                    protected.update({"goals", "assists", "appearances", "minutes_played", "stats_source"})
+                all_data = merge_supplement(all_data, wd, protected)
+                print(
+                    f"-> Wikidata OK: age={all_data.get('age')} "
+                    f"pos={all_data.get('position')} nat={all_data.get('nationality')}"
+                )
             else:
                 print("-> Wikidata: aucun résultat")
         except Exception as e:
             print(f"-> Erreur scraping Wikidata: {e}")
 
-        # 3) FBREF ensuite (stats saison courante + hint club)
-        try:
-            season = current_fb_season()
-            club_hint = all_data.get("current_club")
-            fb = fbref_stats_for_player(all_data.get("name", normalized_name), season=season, club_hint=club_hint)
-            if fb:
-                all_data = merge_keep_existing(all_data, fb)
-                print(f"-> FBref OK: {all_data.get('appearances')} MP, {all_data.get('goals')} G, {all_data.get('assists')} A")
-            else:
-                print("-> FBref: aucun résultat")
-        except Exception as e:
-            print(f"-> Erreur scraping FBref: {e}")
+        # 3) FBref si les stats manquent encore
+        if not _has_stats(all_data):
+            try:
+                season = current_fb_season()
+                club_hint = all_data.get("current_club")
+                fb = fbref_stats_for_player(
+                    all_data.get("name", normalized_name),
+                    season=season,
+                    club_hint=club_hint,
+                )
+                if fb:
+                    all_data = merge_keep_existing(all_data, fb)
+                    all_data["stats_source"] = "fbref"
+                    print(
+                        f"-> FBref OK: {all_data.get('appearances')} MP, "
+                        f"{all_data.get('goals')} G, {all_data.get('assists')} A"
+                    )
+                else:
+                    print("-> FBref: aucun résultat")
+            except Exception as e:
+                print(f"-> Erreur scraping FBref: {e}")
 
-        # 4) Transfermarkt OPTIONNEL : uniquement market_value (et jamais age/position)
-        try:
-            tm_url = get_player_page_url(all_data.get("name", normalized_name), "transfermarkt")
-            if tm_url:
-                tm_data = scrape_transfermarkt(tm_url) or {}
-                # ne prends QUE market_value (ne peut jamais écraser age/position de Wikidata)
-                all_data = merge_keep_existing(all_data, {
-                    "market_value": tm_data.get("market_value"),
-                    "source_transfermarkt": tm_url
-                })
-        except Exception as e:
-            print(f"-> TM market_value fail: {e}")
+        all_data["stats_available"] = _has_stats(all_data)
 
-        # 5) Valeurs par défaut propres (évite null/None en front)
+        # 4) Valeurs par défaut propres (évite null/None en front)
         for k in ("goals", "assists", "appearances", "minutes_played"):
             if all_data.get(k) is None:
                 all_data[k] = 0
 
-        # 6) Image fallback Wikipedia si Wikidata n'a pas fourni
+        # 5) Image fallback Wikipedia si absent
         if not all_data.get("image_url"):
             try:
                 img = scrape_wikipedia_image(all_data.get("name", normalized_name))
@@ -1148,10 +1339,11 @@ def scrape_and_save_player_data(player_name: str):
             except Exception as e:
                 print(f"-> Erreur image: {e}")
 
-        # 7) Sauvegarde DB
+        # 6) Sauvegarde DB
         try:
             saved = save_player_to_db(all_data)
             if saved:
+                saved["stats_available"] = all_data.get("stats_available", False)
                 print(f"-> Données sauvegardées pour {saved.get('name')}")
                 return saved
         except Exception as e:

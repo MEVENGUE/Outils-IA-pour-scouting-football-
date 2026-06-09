@@ -37,6 +37,40 @@
   color: #ff4444;
 }
 
+.loading-banner,
+.error-inline,
+.stats-unavailable,
+.report-placeholder {
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.loading-banner {
+  color: #ffb347;
+  background: rgba(255, 179, 71, 0.08);
+  border: 1px solid rgba(255, 179, 71, 0.25);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+}
+
+.error-inline {
+  color: #ff6666;
+  background: rgba(255, 68, 68, 0.08);
+  border: 1px solid rgba(255, 68, 68, 0.25);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+}
+
+.stats-unavailable,
+.report-placeholder {
+  color: #aaa;
+  margin: 0.5rem 0 1rem;
+}
+
+.scouting-report-empty {
+  opacity: 0.95;
+}
+
 .empty-state h2 {
   margin-bottom: 0.5rem;
 }
