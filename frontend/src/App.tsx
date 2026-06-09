@@ -22,6 +22,8 @@ export interface Player {
   image_url?: string
   scouting_report?: string
   stats_available?: boolean
+  stats_season?: string
+  stats_source?: string
 }
 
 export type AiStatus = 'ready' | 'unconfigured' | 'report_unavailable'

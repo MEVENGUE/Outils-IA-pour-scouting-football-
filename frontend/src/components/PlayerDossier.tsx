@@ -89,11 +89,14 @@ export default function PlayerDossier({ player, loading, error, aiStatus }: Play
       </div>
 
       <div className="player-stats">
-        <h3>Statistiques</h3>
+        <h3>Statistiques{player.stats_season ? ` (${player.stats_season})` : ''}</h3>
         {!statsAvailable && (
           <p className="stats-unavailable">
             Statistiques saison en cours indisponibles pour le moment.
           </p>
+        )}
+        {statsAvailable && player.stats_source && (
+          <p className="stats-source">Source: {player.stats_source.replace('_', ' ')}</p>
         )}
         <div className="stats-grid">
           <div className="stat-item">

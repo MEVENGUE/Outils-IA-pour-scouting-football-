@@ -21,6 +21,7 @@ interface PlayerSummary {
   assists: number
   appearances: number
   stats_available: boolean
+  stats_season?: string
   image_url: string | null
   scouting_report?: string
 }
@@ -38,6 +39,7 @@ function buildPlayerSummary(player: Player): string {
     assists: player.assists ?? 0,
     appearances: player.appearances ?? 0,
     stats_available: player.stats_available ?? false,
+    stats_season: player.stats_season,
     image_url: player.image_url ?? null,
   }
 
@@ -55,8 +57,9 @@ function buildPlayerSummary(player: Player): string {
   ]
 
   if (summary.stats_available) {
+    const seasonLabel = summary.stats_season ? ` (${summary.stats_season})` : ''
     lines.push(
-      `Stats: ${summary.goals} buts, ${summary.assists} passes, ${summary.appearances} matchs.`,
+      `Stats${seasonLabel}: ${summary.goals} buts, ${summary.assists} passes, ${summary.appearances} matchs.`,
     )
   } else {
     lines.push('Stats saison: indisponibles pour le moment.')

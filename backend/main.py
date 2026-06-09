@@ -562,6 +562,8 @@ Si tu ne connais pas, réponds "Unknown". Réponds uniquement le nom du pays, sa
             'image_url': player_data.get('image_url'),
             'scouting_report': player_data.get('scouting_report'),
             'stats_available': bool(player_data.get('stats_available', False)),
+            'stats_season': player_data.get('stats_season'),
+            'stats_source': player_data.get('stats_source'),
         }
         
         return {

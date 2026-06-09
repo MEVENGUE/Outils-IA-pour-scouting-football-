@@ -568,6 +568,133 @@ def _parse_tm_performance_stats(soup: BeautifulSoup, data: dict) -> None:
                     if not data.get('assists'):
                         data['assists'] = num
 
+def _extract_tm_player_id(tm_url: str | None) -> str | None:
+    if not tm_url:
+        return None
+    match = re.search(r'/spieler/(\d+)', tm_url)
+    return match.group(1) if match else None
+
+def _http_get(url: str, *, referer: str | None = None, accept_json: bool = False):
+    """HTTP GET with optional anti-bot fallbacks for protected sports sites."""
+    headers = dict(HEADERS)
+    if referer:
+        headers["Referer"] = referer
+    if accept_json:
+        headers["Accept"] = "application/json, text/plain, */*"
+
+    if "fbref.com" in url:
+        try:
+            from curl_cffi import requests as curl_requests
+
+            for impersonate in ("chrome120", "chrome110", "safari17_0", "edge101"):
+                response = curl_requests.get(
+                    url,
+                    headers=headers,
+                    impersonate=impersonate,
+                    timeout=15,
+                )
+                if response.status_code == 200:
+                    return response
+        except ImportError:
+            pass
+        except Exception as exc:
+            print(f"-> curl_cffi FBref fetch failed: {exc}")
+
+        try:
+            import cloudscraper
+
+            scraper = cloudscraper.create_scraper(
+                browser={"browser": "chrome", "platform": "windows", "mobile": False},
+            )
+            response = scraper.get(url, headers=headers, timeout=15)
+            if response.status_code == 200:
+                return response
+        except ImportError:
+            pass
+        except Exception as exc:
+            print(f"-> cloudscraper FBref fetch failed: {exc}")
+
+    response = requests.get(url, headers=headers, timeout=15)
+    return response if response.status_code == 200 else None
+
+def fetch_tm_ceapi_stats(player_id: str) -> dict | None:
+    """Récupère les stats saison via l'API JSON Transfermarkt (ceapi)."""
+    try:
+        api_url = f"https://www.transfermarkt.com/ceapi/player/{player_id}/performance"
+        response = _http_get(api_url, accept_json=True)
+        if response is None:
+            return None
+
+        competitions = response.json()
+        if not isinstance(competitions, list) or not competitions:
+            return None
+
+        totals = {
+            "appearances": 0,
+            "goals": 0,
+            "assists": 0,
+            "minutes_played": 0,
+            "yellow_cards": 0,
+            "red_cards": 0,
+        }
+        season_label = competitions[0].get("nameSeason")
+
+        for competition in competitions:
+            totals["appearances"] += int(competition.get("gamesPlayed") or 0)
+            totals["goals"] += int(competition.get("goalsScored") or 0)
+            totals["assists"] += int(competition.get("assists") or 0)
+            totals["minutes_played"] += int(competition.get("minutesPlayed") or 0)
+            totals["yellow_cards"] += int(competition.get("yellowCards") or 0)
+            totals["red_cards"] += (
+                int(competition.get("redCards") or 0)
+                + int(competition.get("secondYellowCards") or 0)
+            )
+
+        if totals["appearances"] <= 0 and totals["goals"] <= 0 and totals["assists"] <= 0:
+            return None
+
+        if totals["appearances"] > 0:
+            totals["goals_per_match"] = round(totals["goals"] / totals["appearances"], 3)
+            totals["assists_per_match"] = round(totals["assists"] / totals["appearances"], 3)
+
+        totals["stats_source"] = "transfermarkt_ceapi"
+        totals["stats_season"] = season_label
+        totals["stats_available"] = True
+        return totals
+    except Exception as exc:
+        print(f"-> Erreur TM ceapi stats pour {player_id}: {exc}")
+        return None
+
+def fetch_player_statistics(
+    player_name: str,
+    tm_url: str | None = None,
+    club_hint: str | None = None,
+) -> dict | None:
+    """Agrège les stats depuis la meilleure source disponible (TM ceapi puis FBref)."""
+    player_id = _extract_tm_player_id(tm_url)
+    if player_id:
+        tm_stats = fetch_tm_ceapi_stats(player_id)
+        if tm_stats:
+            print(
+                f"-> Stats TM ceapi: {tm_stats.get('goals')}G {tm_stats.get('assists')}A "
+                f"{tm_stats.get('appearances')}MJ (saison {tm_stats.get('stats_season')})"
+            )
+            return tm_stats
+
+    season = current_fb_season()
+    fb_stats = fbref_stats_for_player(player_name, season=season, club_hint=club_hint)
+    if fb_stats:
+        fb_stats["stats_source"] = "fbref"
+        fb_stats["stats_season"] = fb_stats.get("fbref_season") or season
+        fb_stats["stats_available"] = True
+        print(
+            f"-> Stats FBref: {fb_stats.get('goals')}G {fb_stats.get('assists')}A "
+            f"{fb_stats.get('appearances')}MJ (saison {fb_stats.get('stats_season')})"
+        )
+        return fb_stats
+
+    return None
+
 def _fbref_uncomment_tables(html: str) -> str:
     """FBref met parfois des tables dans des commentaires HTML <!-- ... -->"""
     return re.sub(r"<!--|-->", "", html)
@@ -764,25 +891,26 @@ def _fbref_uncomment(html: str) -> str:
 def fbref_search_candidates(player_name: str, limit: int = 8) -> list[dict]:
     q = quote(player_name.strip())
     url = FBREF_SEARCH.format(q=q)
-    r = requests.get(url, headers=HEADERS, timeout=12)
-    if r.status_code != 200:
+    response = _http_get(url, referer=FBREF_BASE)
+    if response is None:
+        print(f"-> FBref search blocked or unavailable for {player_name}")
         return []
-    soup = BeautifulSoup(_fbref_uncomment(r.text), "html.parser")
+
+    soup = BeautifulSoup(_fbref_uncomment(response.text), "html.parser")
 
     out = []
-    for a in soup.select('div.search-item-name a[href^="/en/players/"]'):
-        href = a.get("href")
-        name = a.get_text(strip=True)
+    for anchor in soup.select('div.search-item-name a[href^="/en/players/"]'):
+        href = anchor.get("href")
+        name = anchor.get_text(strip=True)
         if href and name:
             out.append({"name": name, "url": FBREF_BASE + href})
             if len(out) >= limit:
                 break
 
-    # fallback
     if not out:
-        for a in soup.select('a[href^="/en/players/"]'):
-            href = a.get("href")
-            name = a.get_text(strip=True)
+        for anchor in soup.select('a[href^="/en/players/"]'):
+            href = anchor.get("href")
+            name = anchor.get_text(strip=True)
             if href and name:
                 out.append({"name": name, "url": FBREF_BASE + href})
                 if len(out) >= limit:
@@ -791,10 +919,10 @@ def fbref_search_candidates(player_name: str, limit: int = 8) -> list[dict]:
     return out
 
 def fbref_scrape_standard(player_url: str, season: str | None = None, club_hint: str | None = None) -> dict | None:
-    r = requests.get(player_url, headers=HEADERS, timeout=12)
-    if r.status_code != 200:
+    response = _http_get(player_url, referer=FBREF_BASE)
+    if response is None:
         return None
-    soup = BeautifulSoup(_fbref_uncomment(r.text), "html.parser")
+    soup = BeautifulSoup(_fbref_uncomment(response.text), "html.parser")
 
     table = soup.select_one("table#stats_standard_dom_lg") or soup.select_one("table#stats_standard")
     if not table:
@@ -851,20 +979,26 @@ def fbref_scrape_standard(player_url: str, season: str | None = None, club_hint:
     return best
 
 def fbref_stats_for_player(player_name: str, season: str | None = None, club_hint: str | None = None) -> dict | None:
-    cands = fbref_search_candidates(player_name, limit=6)
-    if not cands:
+    candidates = fbref_search_candidates(player_name, limit=8)
+    if not candidates:
         return None
 
-    # on teste les 3 meilleurs candidats
-    for c in cands[:3]:
-        time.sleep(0.6)
-        stats = fbref_scrape_standard(c["url"], season=season, club_hint=club_hint)
+    target = _normalize_name_basic(player_name)
+    candidates = sorted(
+        candidates,
+        key=lambda candidate: _name_similarity(candidate["name"], target),
+        reverse=True,
+    )
+
+    for candidate in candidates[:4]:
+        time.sleep(0.5)
+        stats = fbref_scrape_standard(candidate["url"], season=season, club_hint=club_hint)
         if stats and (stats.get("appearances", 0) > 0 or stats.get("minutes_played", 0) > 0):
+            stats["position_fbref"] = stats.get("position_fbref")
             return stats
 
-    # fallback: retourne le meilleur même si MP=0
-    time.sleep(0.6)
-    return fbref_scrape_standard(cands[0]["url"], season=season, club_hint=club_hint)
+    time.sleep(0.5)
+    return fbref_scrape_standard(candidates[0]["url"], season=season, club_hint=club_hint)
 
 # ========== WIKIDATA SCRAPING (Source stable pour données de base) ==========
 
@@ -1128,6 +1262,8 @@ def merge_supplement(dst: dict, src: dict, protected_keys: set[str]) -> dict:
     return dst
 
 def _has_stats(data: dict) -> bool:
+    if data.get("stats_available") is True:
+        return True
     return any(data.get(field) not in (None, 0, "") for field in ("goals", "assists", "appearances"))
 
 def current_fb_season(today: date | None = None) -> str:
@@ -1301,27 +1437,18 @@ def scrape_and_save_player_data(player_name: str):
         except Exception as e:
             print(f"-> Erreur scraping Wikidata: {e}")
 
-        # 3) FBref si les stats manquent encore
-        if not _has_stats(all_data):
-            try:
-                season = current_fb_season()
-                club_hint = all_data.get("current_club")
-                fb = fbref_stats_for_player(
+        # 3) Stats saison (TM ceapi prioritaire, FBref en fallback)
+        try:
+            if all_data.get("source_transfermarkt") or not _has_stats(all_data):
+                stats = fetch_player_statistics(
                     all_data.get("name", normalized_name),
-                    season=season,
-                    club_hint=club_hint,
+                    tm_url=all_data.get("source_transfermarkt"),
+                    club_hint=all_data.get("current_club"),
                 )
-                if fb:
-                    all_data = merge_keep_existing(all_data, fb)
-                    all_data["stats_source"] = "fbref"
-                    print(
-                        f"-> FBref OK: {all_data.get('appearances')} MP, "
-                        f"{all_data.get('goals')} G, {all_data.get('assists')} A"
-                    )
-                else:
-                    print("-> FBref: aucun résultat")
-            except Exception as e:
-                print(f"-> Erreur scraping FBref: {e}")
+                if stats:
+                    all_data = merge_keep_existing(all_data, stats)
+        except Exception as e:
+            print(f"-> Erreur récupération stats: {e}")
 
         all_data["stats_available"] = _has_stats(all_data)
 
@@ -1344,6 +1471,8 @@ def scrape_and_save_player_data(player_name: str):
             saved = save_player_to_db(all_data)
             if saved:
                 saved["stats_available"] = all_data.get("stats_available", False)
+                saved["stats_season"] = all_data.get("stats_season")
+                saved["stats_source"] = all_data.get("stats_source")
                 print(f"-> Données sauvegardées pour {saved.get('name')}")
                 return saved
         except Exception as e:
