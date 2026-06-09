@@ -1,437 +1,330 @@
-# X-scout - Dashboard Online Scouting
-
 <div align="center">
 
-![X-scout Logo](Logo/X-scout%20logo.jpg)
+# X-SCOUT AI
 
-**Plateforme intelligente de scouting footballistique avec IA et visualisation 3D**
+![X-SCOUT Logo](Logo/X-scout%20logo.jpg)
 
-[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
-[![React](https://img.shields.io/badge/React-19.1.0-61DAFB.svg)](https://reactjs.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)](https://fastapi.tiangolo.com/)
-[![OpenAI](https://img.shields.io/badge/OpenAI-GPT--4o--mini-412991.svg)](https://openai.com/)
+**Football Intelligence OS — scouting augmenté par IA, données live et visualisation 3D**
+
+[![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=white)](https://react.dev/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![Python](https://img.shields.io/badge/Python-3.8+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![OpenAI](https://img.shields.io/badge/OpenAI-GPT--4o--mini-412991?style=for-the-badge&logo=openai&logoColor=white)](https://openai.com/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Vite](https://img.shields.io/badge/Vite-6-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
+
+Interface premium inspirée des outils d’analyse professionnels (Palantir, Hudl, Wyscout) — pensée pour les recruteurs, analystes et passionnés de data football.
+
+[🚀 Démarrage rapide](#-démarrage-rapide) · [🎬 Démo](#-démo-vidéo) · [📸 Captures](#-aperçu-de-linterface) · [⚙️ Configuration](#-configuration) · [🔌 API](#-api-endpoints)
 
 </div>
 
+---
 
-## ⚙️ Sur PC 💻 et Mobile 📱
+## 🎬 Démo vidéo
 
+<p align="center">
+  <video src="docs/assets/x-scout-demo.mp4" width="920" autoplay loop muted playsinline controls>
+    Votre navigateur ne supporte pas la lecture vidéo — <a href="docs/assets/x-scout-demo.mp4">télécharger la démo</a>.
+  </video>
+</p>
 
-## 📋 Table des matières
+<p align="center"><em>Recherche joueur → Dashboard → Globe 3D → Rapports IA → Comparaison → Informations auteur</em></p>
 
-- [Description](#-description)
-- [Fonctionnalités](#-fonctionnalités)
-- [Architecture](#-architecture)
-- [Technologies utilisées](#-technologies-utilisées)
-- [Installation](#-installation)
-- [Configuration](#-configuration)
-- [Utilisation](#-utilisation)
-- [Structure du projet](#-structure-du-projet)
-- [API Endpoints](#-api-endpoints)
-- [Fonctionnalités avancées](#-fonctionnalités-avancées)
-- [Dépannage](#-dépannage)
-- [Contribution](#-contribution)
-- [Licence](#-licence)
+---
 
-## 🎯 Description
+## 📸 Aperçu de l’interface
 
-**X-scout** est une application web moderne de scouting footballistique qui combine le web scraping, l'intelligence artificielle et la visualisation 3D pour offrir une expérience complète d'analyse de joueurs.
+<table>
+  <tr>
+    <td width="50%">
+      <img src="docs/assets/02-player-dashboard.png" alt="Dashboard joueur — profil, stats et graphiques" />
+      <p align="center"><strong>Dashboard joueur</strong><br/>Profil complet, KPIs et courbes de performance</p>
+    </td>
+    <td width="50%">
+      <img src="docs/assets/03-globe-intelligence.png" alt="Globe 3D Intelligence — cartographie des nationalités" />
+      <p align="center"><strong>Globe 3D Intelligence</strong><br/>Cartographie interactive des joueurs indexés</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="docs/assets/04-ai-reports.png" alt="Rapports de scouting générés par IA" />
+      <p align="center"><strong>AI Reports</strong><br/>Rapports scouting exportables en PDF</p>
+    </td>
+    <td width="50%">
+      <img src="docs/assets/05-compare-players.png" alt="Comparaison de joueurs côte à côte" />
+      <p align="center"><strong>Compare Players</strong><br/>Analyse comparative multi-critères</p>
+    </td>
+  </tr>
+</table>
 
-L'application permet de :
-- Rechercher et analyser des joueurs de football
-- Visualiser leur nationalité sur un globe 3D interactif
-- Générer des rapports de scouting professionnels avec l'IA
-- Consulter des statistiques détaillées et des données enrichies
+<p align="center">
+  <img src="docs/assets/01-home-dashboard.png" alt="Vue d’ensemble X-SCOUT AI" width="920" />
+  <br/>
+  <strong>Shell applicatif</strong> — sidebar, recherche globale, copilot IA et bandeau d’insights temps réel
+</p>
 
-## ✨ Fonctionnalités
+---
 
-### 🔍 Recherche intelligente
-- **Normalisation automatique des noms** : Corrige automatiquement les noms mal écrits, ajoute les accents manquants et trouve le bon joueur même avec des erreurs de saisie
-- **Scraping multi-sources** : Récupère les données depuis Transfermarkt et Wikipedia
-- **Enrichissement IA** : Complète automatiquement les données manquantes avec OpenAI
+## ✨ Pourquoi X-SCOUT ?
 
-### 📊 Visualisation 3D
-- **Globe interactif** : Visualise la nationalité des joueurs sur un globe 3D fluorescent (thème rouge)
-- **Points de localisation** : Affiche un point rouge sur le pays du joueur
-- **Effets visuels** : Animations et effets de lueur inspirés de Kaspersky Cybermap
+| Capacité | Ce que vous obtenez |
+|----------|---------------------|
+| **Recherche intelligente** | Normalisation des noms (accents, fautes), matching Transfermarkt, exclusion des équipes réserves |
+| **Stats live** | Buts, passes, matchs via API Transfermarkt `ceapi` (+ fallback FBref) |
+| **IA Copilot** | Chat contextuel sur le joueur actif, rapports scouting structurés |
+| **Globe 3D** | Visualisation géographique fluide (react-globe.gl / Three.js) |
+| **Watchlist & Compare** | Suivi de cibles et comparaison radar / barres |
+| **Document Center** | Analyse de PDF/texte côté client + enrichissement via `/ai` |
+| **Talent Discovery** | Exploration de la base SQLite indexée |
+| **UX premium** | Dark glass UI, Framer Motion, Recharts, React Query |
 
-### 🤖 Intelligence Artificielle
-- **Rapports de scouting** : Génère des rapports professionnels détaillés avec analyse technique, statistique et prédictions
-- **Assistant IA** : Chat interactif pour poser des questions sur les joueurs
-- **Enrichissement de données** : Complète automatiquement les statistiques, nationalités et images manquantes
-
-### 📈 Statistiques détaillées
-- Buts, passes décisives, matchs joués
-- Valeur marchande, club actuel, position
-- Graphiques de performance (buts/match, passes/match)
-- Contribution totale (buts + passes)
+---
 
 ## 🏗️ Architecture
 
+```mermaid
+flowchart TB
+  subgraph Client["Frontend — React 19 + Vite"]
+    UI[AppShell / Sidebar / Copilot]
+    RQ[React Query]
+    GLOBE[Globe 3D]
+  end
+
+  subgraph API["Backend — FastAPI"]
+    REST[REST API]
+    AI[OpenAI Integration]
+    DB[(SQLite players.db)]
+  end
+
+  subgraph Sources["Data Pipeline"]
+    TM[Transfermarkt + ceapi stats]
+    WIKI[Wikipedia / Wikidata]
+    FBREF[FBref fallback]
+  end
+
+  UI --> RQ --> REST
+  GLOBE --> REST
+  REST --> AI
+  REST --> DB
+  REST --> TM
+  REST --> WIKI
+  REST --> FBREF
 ```
-┌─────────────────┐
-│   Frontend      │  React + TypeScript + Vite
-│   (React)       │  react-globe.gl (3D)
-└────────┬────────┘
-         │ HTTP/REST
-┌────────▼────────┐
-│   Backend       │  FastAPI (Python)
-│   (FastAPI)     │  ├── API REST
-└────────┬────────┘  ├── OpenAI Integration
-         │           └── Database Management
-┌────────▼────────┐
-│   Scraping      │  BeautifulSoup + Requests
-│   (Python)      │  ├── Transfermarkt
-└────────┬────────┘  └── Wikipedia
-         │
-┌────────▼────────┐
-│   Database      │  SQLite
-│   (SQLite)      │  └── players.db
-└─────────────────┘
-```
 
-## 🛠️ Technologies utilisées
+**Déploiement recommandé**
 
-### Backend
-- **FastAPI** : Framework web moderne et rapide
-- **SQLite** : Base de données relationnelle
-- **BeautifulSoup4** : Parsing HTML pour le scraping
-- **Requests** : Client HTTP pour les requêtes
-- **OpenAI API** : Intelligence artificielle pour les rapports et l'enrichissement
+| Composant | Plateforme | Variable clé |
+|-----------|------------|--------------|
+| Frontend | [Vercel](https://vercel.com) | `VITE_API_URL` |
+| Backend | [Railway](https://railway.com) | `OPENAI_API_KEY` |
 
-### Frontend
-- **React 19** : Bibliothèque UI
-- **TypeScript** : Typage statique
-- **Vite** : Build tool et dev server
-- **react-globe.gl** : Visualisation 3D du globe
-- **Three.js** : Moteur 3D sous-jacent
+---
 
-## 📦 Installation
+## 🛠️ Stack technique
+
+**Backend** — FastAPI · SQLite · BeautifulSoup · curl_cffi / cloudscraper · OpenAI SDK
+
+**Frontend** — React 19 · TypeScript · Vite 6 · TanStack Query · Framer Motion · Recharts · Lucide · jsPDF · pdf.js · react-globe.gl
+
+---
+
+## 🚀 Démarrage rapide
 
 ### Prérequis
 
-- **Python 3.8+** : [Télécharger Python](https://www.python.org/downloads/)
-- **Node.js 18+** : [Télécharger Node.js](https://nodejs.org/)
-- **npm** ou **yarn** : Gestionnaire de paquets Node.js
-- **Clé API OpenAI** : [Obtenir une clé](https://platform.openai.com/api-keys)
+- Python **3.8+**
+- Node.js **18+**
+- Clé API OpenAI ([platform.openai.com](https://platform.openai.com/api-keys))
 
-### Étapes d'installation
+### 1. Cloner le dépôt
 
-1. **Cloner le repository** (ou télécharger le projet)
 ```bash
-git clone <repository-url>
-cd "Dashboard Online Scouting"
+git clone https://github.com/MEVENGUE/Outils-IA-pour-scouting-football-.git
+cd Outils-IA-pour-scouting-football-
 ```
 
-2. **Installer les dépendances Backend**
+### 2. Backend
+
 ```bash
 cd backend
 pip install -r requirements.txt
+cp ../.env.example ../.env   # puis éditez OPENAI_API_KEY
+python3 -m uvicorn main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-3. **Installer les dépendances Frontend**
-```bash
-cd ../frontend
-npm install
-```
+Health check : [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)  
+Swagger : [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 
-## ⚙️ Configuration
+### 3. Frontend
 
-### Configuration OpenAI
-
-⚠️ **IMPORTANT** : Pour des raisons de sécurité, la clé API OpenAI n'est **PAS** incluse dans le code source.
-
-#### Méthode 1 : Fichier .env (Recommandé)
-
-1. **Créer un fichier `.env`** à la racine du projet :
-```bash
-# À la racine du projet
-touch .env
-```
-
-2. **Copier le contenu** de `.env.example` dans `.env` :
-```bash
-cp .env.example .env
-```
-
-3. **Éditer le fichier `.env`** et ajouter votre clé API :
-```env
-OPENAI_API_KEY=votre-clé-api-openai-ici
-```
-
-4. **Obtenir une clé API** : [https://platform.openai.com/api-keys](https://platform.openai.com/api-keys)
-
-#### Méthode 2 : Variable d'environnement système
-
-**Windows (PowerShell):**
-```powershell
-$env:OPENAI_API_KEY="votre-clé-api-openai"
-```
-
-**Windows (CMD):**
-```cmd
-set OPENAI_API_KEY=votre-clé-api-openai
-```
-
-**Linux/Mac:**
-```bash
-export OPENAI_API_KEY="votre-clé-api-openai"
-```
-
-#### Vérification
-
-Après configuration, vérifiez que la clé est bien chargée en démarrant le backend. Vous devriez voir :
-- ✅ Si la clé est configurée : L'application démarre normalement
-- ⚠️ Si la clé n'est pas configurée : Un message d'avertissement s'affiche
-
-**Note** : Le fichier `.env` est automatiquement ignoré par Git (dans `.gitignore`) pour des raisons de sécurité.
-
-### Configuration de l'API URL (Frontend)
-
-Si le backend tourne sur un autre port, modifier `frontend/src/App.tsx` :
-```typescript
-const API_URL = 'http://127.0.0.1:8000'  // Modifier si nécessaire
-```
-
-## 🚀 Utilisation
-
-### Démarrage de l'application
-
-1. **Démarrer le Backend** (dans un terminal)
-```bash
-cd backend
-python -m uvicorn main:app --reload --host 127.0.0.1 --port 8000
-```
-
-Le backend sera accessible sur : `http://127.0.0.1:8000`
-- Documentation API : `http://127.0.0.1:8000/docs`
-- Health check : `http://127.0.0.1:8000/health`
-
-2. **Démarrer le Frontend** (dans un autre terminal)
 ```bash
 cd frontend
+npm install
 npm run dev
 ```
 
-Le frontend sera accessible sur : `http://localhost:5173`
+Application : [http://localhost:5173](http://localhost:5173)
 
-### Utilisation de l'application
+### 4. Premier test
 
-1. **Ouvrir** `http://localhost:5173` dans votre navigateur
-2. **Rechercher un joueur** en tapant son nom dans la barre de recherche
-3. **Visualiser** :
-   - Les données du joueur dans le dossier
-   - La nationalité sur le globe 3D
-   - Le rapport de scouting généré par l'IA
-4. **Interagir** avec l'assistant IA pour poser des questions sur le joueur
+1. Ouvrir l’app dans le navigateur  
+2. Rechercher `Kylian Mbappe` (sans accent — la normalisation corrige)  
+3. Explorer le **Dashboard**, le **Globe 3D**, les **AI Reports** et le **Copilot**
 
-### Exemples de recherche
+---
 
-- `Kylian Mbappé` ou `Kylian Mbappe` (sans accent) → Trouve automatiquement le bon joueur
-- `Jude Bellingham` ou `Jude Bellingam` (faute) → Corrige automatiquement
-- `Pedri` → Trouve le joueur même avec un surnom
-- `Lamine Yamal` → Affiche les données complètes
+## ⚙️ Configuration
+
+### Variables d’environnement
+
+| Variable | Où | Description |
+|----------|-----|-------------|
+| `OPENAI_API_KEY` | Backend (`.env` ou Railway) | Rapports IA, copilot, enrichissement |
+| `VITE_API_URL` | Frontend (`.env` ou Vercel) | URL du backend (ex. `https://votre-api.railway.app`) |
+
+**Backend** — créer `.env` à la racine :
+
+```env
+OPENAI_API_KEY=sk-...
+```
+
+**Frontend** — créer `frontend/.env.local` :
+
+```env
+VITE_API_URL=http://127.0.0.1:8000
+```
+
+> La clé OpenAI ne doit **jamais** être exposée côté frontend. Seul le backend appelle OpenAI.
+
+### Vérification
+
+```bash
+curl http://127.0.0.1:8000/health
+# {"status":"healthy","database":"connected","openai":"configured"}
+```
+
+---
+
+## 🧭 Modules de l’application
+
+| Vue | Description |
+|-----|-------------|
+| **Search Players** | Recherche globale et chargement de profil |
+| **Dashboard** | Fiche joueur, KPIs, graphiques Recharts, watchlist |
+| **3D Globe Intelligence** | Carte mondiale des joueurs en base |
+| **AI Reports** | Rapport scouting + export PDF |
+| **Watchlist** | Joueurs suivis (localStorage) |
+| **Compare Players** | Comparaison visuelle de deux profils |
+| **Talent Discovery** | Parcours de la base indexée |
+| **Document Analysis** | Upload PDF/texte et analyse IA |
+| **Informations auteur** | FRANCK MEVENGUE — créateur du projet |
+
+---
 
 ## 📁 Structure du projet
 
 ```
-Dashboard Online Scouting/
-│
-├── backend/                 # Backend FastAPI
-│   ├── main.py             # Application principale et endpoints API
-│   ├── database.py         # Gestion centralisée de la base de données
-│   ├── requirements.txt     # Dépendances Python
-│   └── ...
-│
-├── frontend/                # Frontend React
+Outils-IA-pour-scouting-football-/
+├── backend/
+│   ├── main.py              # API FastAPI
+│   ├── database.py          # SQLite + upsert joueurs
+│   └── scraping/scraper.py  # Pipeline TM / FBref / Wikidata
+├── frontend/
 │   ├── src/
-│   │   ├── App.tsx         # Composant principal
-│   │   ├── components/
-│   │   │   ├── Globe.tsx   # Globe 3D interactif
-│   │   │   ├── PlayerDossier.tsx  # Affichage des données joueur
-│   │   │   └── AIScoutingAssistant.tsx  # Chat IA
-│   │   └── ...
-│   ├── package.json        # Dépendances Node.js
-│   └── ...
-│
-├── scraping/                # Module de scraping
-│   ├── scraper.py          # Scraping Transfermarkt et Wikipedia
-│   └── players.db         # Base de données SQLite (générée automatiquement)
-│
-├── Logo/                    # Assets du projet
-│   └── X-scout logo.jpg
-│
-└── README.md               # Ce fichier
+│   │   ├── layout/          # AppShell, Sidebar, Copilot, TopBar
+│   │   ├── features/        # dashboard, globe, reports, compare…
+│   │   ├── api/             # client HTTP + React Query hooks
+│   │   └── context/         # état global application
+│   └── public/x-scout-logo.jpg
+├── docs/assets/             # captures & démo README
+├── Logo/                    # logo officiel
+├── vercel.json              # déploiement frontend
+└── railway.json             # déploiement backend
 ```
+
+---
 
 ## 🔌 API Endpoints
 
-### Endpoints principaux
+| Méthode | Route | Rôle |
+|---------|-------|------|
+| `GET` | `/health` | Statut API, DB, OpenAI |
+| `POST` | `/scrape-player` | Scrape + enrichissement + rapport IA |
+| `GET` | `/players` | Liste / filtres (nom, pays, poste, âge) |
+| `GET` | `/players/{id}` | Joueur par ID |
+| `GET` | `/player-by-name/{name}` | Recherche partielle |
+| `GET` | `/countries` | Pays des joueurs indexés |
+| `GET` | `/analytics/player-stats` | Agrégats statistiques |
+| `POST` | `/ai` | Proxy Copilot / analyse documentaire |
 
-#### `GET /`
-Page d'accueil de l'API avec les informations principales
+**Exemple — scrape joueur**
 
-#### `GET /health`
-Vérification de l'état de santé de l'API et de la base de données
-
-#### `POST /scrape-player`
-Lance le scraping pour un joueur et retourne les données complètes
-
-**Body:**
-```json
-{
-  "player_name": "Kylian Mbappé"
-}
+```bash
+curl -X POST http://127.0.0.1:8000/scrape-player \
+  -H "Content-Type: application/json" \
+  -d '{"player_name": "Kylian Mbappé"}'
 ```
 
-**Response:**
-```json
-{
-  "player": {
-    "name": "Kylian Mbappé",
-    "age": 25,
-    "nationality": "France",
-    "current_club": "Real Madrid",
-    "position": "Attaquant",
-    "market_value": "€180.00m",
-    "goals": 45,
-    "assists": 12,
-    "appearances": 38,
-    "image_url": "https://...",
-    "scouting_report": "## Rapport de Scouting..."
-  }
-}
-```
+Documentation interactive : `/docs`
 
-#### `GET /players`
-Liste tous les joueurs avec filtres optionnels
+---
 
-**Query parameters:**
-- `name` : Filtrer par nom
-- `country` : Filtrer par pays
-- `position` : Filtrer par position
-- `max_age` : Filtrer par âge maximum
+## 🎨 Pipeline de données
 
-#### `GET /players/{player_id}`
-Récupère un joueur par son ID
+1. **Normalisation du nom** — correction accents / orthographe via heuristiques + OpenAI  
+2. **Transfermarkt** — profil, club, valeur marchande, photo  
+3. **Stats saison** — API `ceapi/player/{id}/performance` (prioritaire)  
+4. **FBref** — fallback si disponible (curl_cffi / cloudscraper)  
+5. **Wikipedia / Wikidata** — enrichissement biographique  
+6. **OpenAI** — rapport scouting structuré + réponses Copilot  
 
-#### `GET /player-by-name/{player_name}`
-Récupère un joueur par son nom (recherche partielle)
-
-#### `GET /countries`
-Liste tous les pays des joueurs enregistrés
-
-#### `POST /ai`
-Proxy pour les requêtes vers l'API OpenAI (utilisé par le frontend)
-
-### Documentation interactive
-
-Accédez à la documentation Swagger complète sur : `http://127.0.0.1:8000/docs`
-
-## 🎨 Fonctionnalités avancées
-
-### Normalisation automatique des noms
-
-Le système utilise OpenAI pour corriger automatiquement :
-- **Accents manquants** : `Kylian Mbappe` → `Kylian Mbappé`
-- **Fautes d'orthographe** : `Jude Bellingam` → `Jude Bellingham`
-- **Noms incomplets** : Conserve les surnoms connus (`Pedri` reste `Pedri`)
-
-### Enrichissement intelligent
-
-Si des données manquent après le scraping, OpenAI complète automatiquement :
-- Statistiques (buts, passes, matchs)
-- Nationalité
-- Image du joueur
-
-### Rapports de scouting IA
-
-Chaque joueur reçoit un rapport professionnel incluant :
-1. **Analyse technique** : Forces, faiblesses, style de jeu
-2. **Analyse statistique** : Interprétation des performances
-3. **Potentiel & valeur marchande** : Évaluation et projection
-4. **Recommandations stratégiques** : Clubs/ligues adaptés
-5. **Prédictions** : Tendances futures probables
-
-### Globe 3D interactif
-
-- **Thème fluorescent rouge** : Inspiré de Kaspersky Cybermap
-- **Points de localisation** : Affiche le pays du joueur avec un point rouge
-- **Animations** : Effets de lueur et animations fluides
-- **Interactivité** : Rotation et zoom avec la souris
+---
 
 ## 🐛 Dépannage
 
-### Le backend ne démarre pas
+| Problème | Solution |
+|----------|----------|
+| Backend inaccessible | Vérifier port `8000`, utiliser `python3` si `python` absent |
+| Frontend sans données | Contrôler `VITE_API_URL` et CORS backend |
+| OpenAI `unconfigured` | Définir `OPENAI_API_KEY` dans `.env` |
+| Scraping lent / timeout | Transfermarkt peut limiter — réessayer après quelques secondes |
+| Stats manquantes | Vérifier logs `stats_source` dans la réponse API |
+| DB corrompue | Supprimer `scraping/players.db` — recréée au prochain scrape |
 
-1. Vérifier que Python 3.8+ est installé
-2. Vérifier que les dépendances sont installées : `pip install -r requirements.txt`
-3. Vérifier que le port 8000 n'est pas déjà utilisé
-
-### Le frontend ne se connecte pas au backend
-
-1. Vérifier que le backend tourne sur `http://127.0.0.1:8000`
-2. Vérifier l'URL dans `frontend/src/App.tsx`
-3. Vérifier les logs du backend pour les erreurs CORS
-
-### Erreurs de scraping
-
-1. Vérifier votre connexion internet
-2. Transfermarkt peut bloquer les requêtes trop fréquentes (attendre quelques secondes)
-3. Vérifier que le nom du joueur est correct (la normalisation IA devrait aider)
-
-### Erreurs OpenAI
-
-1. **Vérifier que la clé API est configurée** :
-   - Vérifiez que le fichier `.env` existe et contient `OPENAI_API_KEY=votre-clé`
-   - Ou vérifiez que la variable d'environnement `OPENAI_API_KEY` est définie
-   - Voir la section [Configuration OpenAI](#-configuration-openai) dans le README
-
-2. **Vérifier que votre clé API OpenAI est valide** :
-   - Testez votre clé sur [https://platform.openai.com/api-keys](https://platform.openai.com/api-keys)
-   - Assurez-vous qu'elle n'a pas expiré
-
-3. **Vérifier votre quota OpenAI** :
-   - Vérifiez votre quota sur [https://platform.openai.com/usage](https://platform.openai.com/usage)
-
-4. **Vérifier votre connexion internet**
-
-### Base de données corrompue
-
-Supprimer `scraping/players.db` et relancer l'application (la base sera recréée automatiquement)
+---
 
 ## 🤝 Contribution
 
-Les contributions sont les bienvenues ! Pour contribuer :
+1. Fork du projet  
+2. Branche feature : `git checkout -b feature/ma-fonctionnalite`  
+3. Commit : `git commit -m 'Add: description claire'`  
+4. Push + Pull Request  
 
-1. Fork le projet
-2. Créer une branche pour votre fonctionnalité (`git checkout -b feature/AmazingFeature`)
-3. Commit vos changements (`git commit -m 'Add some AmazingFeature'`)
-4. Push vers la branche (`git push origin feature/AmazingFeature`)
-5. Ouvrir une Pull Request
-
-## 📝 Licence
-
-Ce projet est sous licence MIT. Voir le fichier `LICENSE` pour plus de détails.
+---
 
 ## 👨‍💻 Auteur
 
-**MEVENGUE Franck**
+<p align="center">
+  <img src="docs/assets/06-author.png" alt="Informations auteur — FRANCK MEVENGUE" width="640" />
+</p>
+
+**FRANCK MEVENGUE** — Créateur & développeur de X-SCOUT AI
+
+[![GitHub](https://img.shields.io/badge/GitHub-MEVENGUE-181717?style=flat-square&logo=github)](https://github.com/MEVENGUE/Outils-IA-pour-scouting-football-)
+
+---
 
 ## 🙏 Remerciements
 
-- **Transfermarkt** : Source de données des joueurs
-- **Wikipedia** : Source des images
-- **OpenAI** : Intelligence artificielle pour les rapports
-- **react-globe.gl** : Bibliothèque de visualisation 3D
+Transfermarkt · Wikipedia · Wikidata · OpenAI · react-globe.gl · Recharts · FastAPI
 
 ---
 
 <div align="center">
 
-**Fait avec ❤️ pour le football**
+**Fait avec passion pour le football et la data**
 
-⭐ Si ce projet vous a aidé, n'hésitez pas à lui donner une étoile !
+⭐ Un star sur le repo aide à faire découvrir X-SCOUT !
 
 </div>
-
