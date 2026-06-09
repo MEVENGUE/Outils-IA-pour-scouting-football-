@@ -1,0 +1,46 @@
+.globe-view {
+  min-height: calc(100vh - var(--topbar-height) - var(--insights-height) - 2rem);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.globe-view.fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  border-radius: 0;
+}
+
+.globe-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.globe-toolbar h3 {
+  margin: 0;
+}
+
+.globe-toolbar p {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.globe-controls {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.globe-loader {
+  flex: 1;
+  margin: 1rem;
+}
+
+.intel-globe {
+  flex: 1;
+  min-height: 520px;
+}

@@ -1,0 +1,30 @@
+.performance-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 1rem;
+}
+
+.performance {
+  padding: 1rem;
+}
+
+.performance h3 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+}
+
+.chart-box {
+  min-height: 220px;
+}
+
+.contrib-total {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+@media (max-width: 900px) {
+  .performance-grid {
+    grid-template-columns: 1fr;
+  }
+}

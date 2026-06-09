@@ -1,0 +1,40 @@
+.insights-strip {
+  height: var(--insights-height);
+  display: flex;
+  align-items: center;
+  padding: 0 1rem;
+  border-top: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.insights-empty {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.insights-track {
+  display: flex;
+  gap: 0.75rem;
+  overflow-x: auto;
+  width: 100%;
+}
+
+.insight-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
+  white-space: nowrap;
+  font-size: 0.78rem;
+}
+
+.insight-chip strong {
+  color: var(--primary-soft);
+}
+
+.insight-chip time {
+  color: var(--muted);
+}

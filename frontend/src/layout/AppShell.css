@@ -1,0 +1,40 @@
+.app-shell {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 1fr var(--copilot-width);
+  min-height: 100vh;
+  background: radial-gradient(circle at 20% 0%, rgba(255, 45, 45, 0.08), transparent 35%),
+    var(--bg);
+}
+
+.app-main {
+  min-width: 0;
+  display: grid;
+  grid-template-rows: var(--topbar-height) 1fr var(--insights-height);
+}
+
+.app-content {
+  min-height: 0;
+  overflow: auto;
+  padding: 1rem;
+}
+
+.view-fallback {
+  height: 320px;
+  margin: 1rem;
+}
+
+@media (max-width: 1200px) {
+  .app-shell {
+    grid-template-columns: var(--sidebar-width) 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    display: none;
+  }
+}

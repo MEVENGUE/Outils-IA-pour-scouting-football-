@@ -1,0 +1,51 @@
+.topbar {
+  height: var(--topbar-height);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.topbar-search {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1;
+  max-width: 720px;
+}
+
+.topbar-input {
+  border: none;
+  background: transparent;
+  padding-left: 0;
+}
+
+.topbar-input:focus {
+  box-shadow: none;
+}
+
+.topbar-search kbd {
+  color: var(--muted);
+  font-size: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.2rem 0.45rem;
+}
+
+.topbar-meta {
+  color: var(--muted);
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.topbar-meta strong {
+  color: var(--text);
+}
+
+@media (max-width: 960px) {
+  .topbar-meta {
+    display: none;
+  }
+}

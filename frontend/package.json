@@ -10,9 +10,15 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.101.0",
+    "framer-motion": "^12.40.0",
+    "jspdf": "^4.2.1",
+    "lucide-react": "^1.17.0",
+    "pdfjs-dist": "^6.0.227",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-globe.gl": "^2.33.2",
+    "recharts": "^3.8.1",
     "three": "^0.177.0"
   },
   "devDependencies": {

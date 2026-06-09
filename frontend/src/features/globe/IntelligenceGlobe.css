@@ -1,0 +1,11 @@
+.intel-globe {
+  position: relative;
+}
+
+.intel-globe::after {
+  content: '';
+  position: absolute;
+  inset: 20% 30%;
+  pointer-events: none;
+  background: radial-gradient(circle, rgba(255, 45, 45, 0.12), transparent 70%);
+}
