@@ -1,51 +1,140 @@
 .topbar {
-  height: var(--topbar-height);
+  min-height: var(--topbar-height);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  padding: 0 1.25rem;
+  gap: 0.75rem;
+  padding: 0.65rem 1.25rem;
   border-bottom: 1px solid var(--border);
+}
+
+.topbar-menu-btn,
+.topbar-copilot-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.topbar-copilot-btn {
+  color: var(--primary-soft);
 }
 
 .topbar-search {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.65rem;
   flex: 1;
+  min-width: 0;
   max-width: 720px;
+}
+
+.topbar-search-icon {
+  flex-shrink: 0;
+  color: var(--muted);
 }
 
 .topbar-input {
   border: none;
   background: transparent;
   padding-left: 0;
+  min-width: 0;
+  flex: 1;
 }
 
 .topbar-input:focus {
   box-shadow: none;
 }
 
-.topbar-search kbd {
+.topbar-kbd {
   color: var(--muted);
   font-size: 0.75rem;
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 0.2rem 0.45rem;
+  flex-shrink: 0;
+}
+
+.topbar-submit {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .topbar-meta {
   color: var(--muted);
   font-size: 0.85rem;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .topbar-meta strong {
   color: var(--text);
 }
 
+@media (max-width: 1200px) {
+  .topbar-copilot-btn {
+    display: inline-flex;
+  }
+}
+
 @media (max-width: 960px) {
   .topbar-meta {
     display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .topbar-menu-btn {
+    display: inline-flex;
+  }
+
+  .topbar-kbd {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .topbar {
+    padding: 0.5rem 0.65rem;
+    gap: 0.5rem;
+  }
+
+  .topbar-search {
+    gap: 0.45rem;
+  }
+
+  .topbar-search-icon {
+    display: none;
+  }
+
+  .topbar-submit {
+    padding: 0.55rem 0.75rem;
+    font-size: 0.85rem;
+  }
+}
+
+.topbar-submit-icon {
+  display: none;
+}
+
+@media (max-width: 480px) {
+  .topbar-submit-label {
+    display: none;
+  }
+
+  .topbar-submit-icon {
+    display: block;
+  }
+
+  .topbar-submit {
+    padding: 0.55rem;
+    min-width: 40px;
   }
 }

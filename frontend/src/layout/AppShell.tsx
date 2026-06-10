@@ -1,8 +1,9 @@
-import { Suspense, lazy } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useState } from 'react'
 import Sidebar from './Sidebar'
 import TopBar from './TopBar'
 import InsightsStrip from './InsightsStrip'
 import CopilotPanel from './CopilotPanel'
+import MobileNav from './MobileNav'
 import { useApp } from '../context/AppContext'
 import './AppShell.css'
 
@@ -22,6 +23,23 @@ function ViewFallback() {
 
 export default function AppShell() {
   const { activeView } = useApp()
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [copilotOpen, setCopilotOpen] = useState(false)
+
+  const closeSidebar = useCallback(() => setSidebarOpen(false), [])
+  const closeCopilot = useCallback(() => setCopilotOpen(false), [])
+
+  useEffect(() => {
+    document.body.classList.toggle('sidebar-open', sidebarOpen)
+    document.body.classList.toggle('copilot-open', copilotOpen)
+    return () => {
+      document.body.classList.remove('sidebar-open', 'copilot-open')
+    }
+  }, [sidebarOpen, copilotOpen])
+
+  useEffect(() => {
+    closeSidebar()
+  }, [activeView, closeSidebar])
 
   const renderView = () => {
     switch (activeView) {
@@ -50,15 +68,27 @@ export default function AppShell() {
 
   return (
     <div className="app-shell">
-      <Sidebar />
+      {sidebarOpen && (
+        <button
+          type="button"
+          className="sidebar-overlay"
+          aria-label="Fermer le menu"
+          onClick={closeSidebar}
+        />
+      )}
+      <Sidebar open={sidebarOpen} onNavigate={closeSidebar} />
       <div className="app-main">
-        <TopBar />
+        <TopBar
+          onMenuClick={() => setSidebarOpen(true)}
+          onCopilotClick={() => setCopilotOpen(true)}
+        />
         <div className="app-content">
           <Suspense fallback={<ViewFallback />}>{renderView()}</Suspense>
         </div>
         <InsightsStrip />
       </div>
-      <CopilotPanel />
+      <CopilotPanel open={copilotOpen} onClose={closeCopilot} />
+      <MobileNav onOpenMenu={() => setSidebarOpen(true)} onOpenCopilot={() => setCopilotOpen(true)} />
     </div>
   )
 }

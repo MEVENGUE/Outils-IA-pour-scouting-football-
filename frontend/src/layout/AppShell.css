@@ -16,11 +16,22 @@
   min-height: 0;
   overflow: auto;
   padding: 1rem;
+  -webkit-overflow-scrolling: touch;
 }
 
 .view-fallback {
   height: 320px;
   margin: 1rem;
+}
+
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  border: none;
+  background: rgba(0, 0, 0, 0.55);
+  cursor: pointer;
 }
 
 @media (max-width: 1200px) {
@@ -29,12 +40,37 @@
   }
 }
 
+@media (max-width: 1024px) {
+  :root {
+    --sidebar-width: 260px;
+  }
+}
+
 @media (max-width: 900px) {
   .app-shell {
     grid-template-columns: 1fr;
   }
 
-  .sidebar {
+  .app-main {
+    grid-template-rows: auto 1fr var(--insights-height);
+    padding-bottom: var(--mobile-nav-height);
+  }
+
+  .app-content {
+    padding: 0.75rem;
+  }
+
+  .sidebar-overlay {
+    display: block;
+  }
+
+  body:not(.sidebar-open) .sidebar-overlay {
     display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-content {
+    padding: 0.65rem;
   }
 }

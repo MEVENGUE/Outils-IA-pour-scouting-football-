@@ -16,6 +16,10 @@
   --copilot-width: 380px;
   --topbar-height: 72px;
   --insights-height: 56px;
+  --mobile-nav-height: 64px;
+  --bp-tablet: 1024px;
+  --bp-mobile: 900px;
+  --bp-phone: 640px;
   --glow: 0 0 40px rgba(255, 45, 45, 0.15);
   font-family: 'Inter', 'Plus Jakarta Sans', system-ui, sans-serif;
 }

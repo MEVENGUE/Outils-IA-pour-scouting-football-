@@ -38,3 +38,14 @@
 .insight-chip time {
   color: var(--muted);
 }
+
+@media (max-width: 900px) {
+  .insights-strip {
+    padding: 0 0.65rem;
+  }
+
+  .insight-chip {
+    font-size: 0.72rem;
+    padding: 0.4rem 0.7rem;
+  }
+}

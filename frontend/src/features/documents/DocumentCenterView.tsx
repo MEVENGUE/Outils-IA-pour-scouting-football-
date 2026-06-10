@@ -72,25 +72,27 @@ export default function DocumentCenterView() {
   }
 
   return (
-    <div className="card" style={{ padding: '1rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center' }}>
+    <div className="card view-card--compact">
+      <div className="view-header">
         <div>
           <h2>Document Analysis Center</h2>
-          <p style={{ color: 'var(--muted)' }}>
+          <p>
             Upload TXT, CSV, MD, or PDF. Analysis runs through the existing `/ai` backend proxy.
           </p>
         </div>
-        <label className="btn btn-primary" style={{ cursor: 'pointer' }}>
-          <Upload size={16} /> Upload
-          <input
-            type="file"
-            hidden
-            multiple
-            accept=".txt,.csv,.md,.json,.pdf"
-            onChange={(e) => onUpload(e.target.files)}
-            disabled={busy}
-          />
-        </label>
+        <div className="view-actions">
+          <label className="btn btn-primary" style={{ cursor: 'pointer' }}>
+            <Upload size={16} /> Upload
+            <input
+              type="file"
+              hidden
+              multiple
+              accept=".txt,.csv,.md,.json,.pdf"
+              onChange={(e) => onUpload(e.target.files)}
+              disabled={busy}
+            />
+          </label>
+        </div>
       </div>
 
       <input
@@ -103,14 +105,14 @@ export default function DocumentCenterView() {
 
       {error && <div className="error-banner" style={{ marginTop: '1rem' }}>{error}</div>}
 
-      <div style={{ display: 'grid', gap: '0.75rem', marginTop: '1rem' }}>
+      <div className="list-stack">
         {filtered.length === 0 ? (
           <div className="empty-state">No documents uploaded yet.</div>
         ) : (
           filtered.map((doc) => (
             <div key={doc.id} className="card" style={{ padding: '0.85rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem' }}>
-                <strong>{doc.name}</strong>
+              <div className="view-header" style={{ marginBottom: 0 }}>
+                <strong style={{ wordBreak: 'break-word' }}>{doc.name}</strong>
                 <span className={`badge ${doc.status === 'complete' ? 'success' : doc.status === 'error' ? 'warning' : ''}`}>
                   {doc.status}
                 </span>
@@ -118,7 +120,7 @@ export default function DocumentCenterView() {
               <div style={{ color: 'var(--muted)', fontSize: '0.78rem', marginTop: '0.35rem' }}>
                 {new Date(doc.uploadedAt).toLocaleString()} · {(doc.size / 1024).toFixed(1)} KB
               </div>
-              {doc.summary && <p style={{ marginTop: '0.65rem', whiteSpace: 'pre-wrap' }}>{doc.summary}</p>}
+              {doc.summary && <p style={{ marginTop: '0.65rem', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{doc.summary}</p>}
               {doc.insights && doc.insights.length > 0 && (
                 <ul style={{ margin: '0.5rem 0 0', paddingLeft: '1.1rem' }}>
                   {doc.insights.map((insight) => (

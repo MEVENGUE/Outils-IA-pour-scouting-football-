@@ -21,26 +21,28 @@ export default function ReportsView() {
   }
 
   return (
-    <div className="card" style={{ padding: '1.25rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem' }}>
+    <div className="card view-card">
+      <div className="view-header">
         <div>
           <h2>AI Scouting Report — {player.name}</h2>
-          <p style={{ color: 'var(--muted)' }}>
+          <p>
             Source: backend OpenAI integration {aiStatus === 'ready' ? '(active)' : '(limited)'}
           </p>
         </div>
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={exportPdf}
-          disabled={!player.scouting_report}
-        >
-          <Download size={16} /> Export PDF
-        </button>
+        <div className="view-actions">
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={exportPdf}
+            disabled={!player.scouting_report}
+          >
+            <Download size={16} /> Export PDF
+          </button>
+        </div>
       </div>
 
       {player.scouting_report ? (
-        <article style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6, marginTop: '1rem' }}>
+        <article style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6, marginTop: '1rem', wordBreak: 'break-word' }}>
           {player.scouting_report}
         </article>
       ) : (

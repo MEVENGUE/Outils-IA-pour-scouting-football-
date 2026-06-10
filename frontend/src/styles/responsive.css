@@ -1,0 +1,160 @@
+/* Shared responsive layout utilities for feature views */
+
+.view-card {
+  padding: 1.25rem;
+}
+
+.view-card--compact {
+  padding: 1rem;
+}
+
+.view-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.view-header h2 {
+  margin: 0;
+  font-size: clamp(1.1rem, 4vw, 1.5rem);
+}
+
+.view-header p {
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.view-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.search-form-row {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+}
+
+.search-form-row .input {
+  flex: 1;
+  min-width: 0;
+}
+
+.search-form-row .btn {
+  flex-shrink: 0;
+}
+
+.compare-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.compare-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.list-stack {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.list-row {
+  padding: 0.85rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.list-row--grid {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+}
+
+.list-row__main {
+  min-width: 0;
+  flex: 1;
+}
+
+.list-row__meta {
+  color: var(--muted);
+  font-size: 0.82rem;
+  word-break: break-word;
+}
+
+.list-row__actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .view-card,
+  .view-card--compact {
+    padding: 1rem;
+  }
+
+  .compare-form {
+    grid-template-columns: 1fr;
+  }
+
+  .compare-form .btn {
+    width: 100%;
+  }
+
+  .compare-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .list-row--grid {
+    grid-template-columns: 1fr;
+    gap: 0.65rem;
+  }
+
+  .list-row__actions {
+    width: 100%;
+  }
+
+  .list-row__actions .btn {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .search-form-row {
+    flex-direction: column;
+  }
+
+  .search-form-row .btn {
+    width: 100%;
+  }
+
+  .view-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .view-actions {
+    width: 100%;
+  }
+
+  .view-actions .btn {
+    flex: 1;
+  }
+}

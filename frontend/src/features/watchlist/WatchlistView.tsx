@@ -22,31 +22,21 @@ export default function WatchlistView() {
   }
 
   return (
-    <div className="card" style={{ padding: '1rem' }}>
+    <div className="card view-card--compact">
       <h2>Watchlist</h2>
-      <div style={{ display: 'grid', gap: '0.75rem', marginTop: '1rem' }}>
+      <div className="list-stack">
         {players.map((p) => (
-          <div
-            key={p.id}
-            className="card"
-            style={{
-              padding: '0.85rem',
-              display: 'grid',
-              gridTemplateColumns: '1fr auto auto',
-              gap: '0.75rem',
-              alignItems: 'center',
-            }}
-          >
-            <div>
+          <div key={p.id} className="card list-row list-row--grid">
+            <div className="list-row__main">
               <strong>{p.name}</strong>
-              <div style={{ color: 'var(--muted)', fontSize: '0.82rem' }}>
+              <div className="list-row__meta">
                 {p.current_club ?? '—'} · {p.position ?? '—'} · {p.market_value ?? '—'}
               </div>
             </div>
             <span className="badge">
               {p.stats_available ? `${p.goals ?? 0}G / ${p.appearances ?? 0}MJ` : 'Stats N/A'}
             </span>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <div className="list-row__actions">
               <button type="button" className="btn" onClick={() => searchPlayer(p.name)}>
                 Open
               </button>

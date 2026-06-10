@@ -28,9 +28,9 @@ export default function CompareView() {
   const chartData = buildCompareChart(compareA, compareB)
 
   return (
-    <div className="card" style={{ padding: '1rem' }}>
+    <div className="card view-card--compact">
       <h2>Compare Players</h2>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '0.75rem', marginTop: '1rem' }}>
+      <div className="compare-form">
         <input className="input" value={nameA} onChange={(e) => setNameA(e.target.value)} placeholder="Player A" />
         <input className="input" value={nameB} onChange={(e) => setNameB(e.target.value)} placeholder="Player B" />
         <button type="button" className="btn btn-primary" onClick={runCompare} disabled={loading}>
@@ -41,18 +41,18 @@ export default function CompareView() {
 
       {compareA && compareB && (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
+          <div className="compare-cards">
             <PlayerCompareCard player={compareA} />
             <PlayerCompareCard player={compareB} />
           </div>
-          <div style={{ height: 280, marginTop: '1rem' }}>
+          <div style={{ height: 280, marginTop: '1rem', minHeight: 220 }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData}>
                 <CartesianGrid stroke="rgba(255,255,255,0.06)" />
-                <XAxis dataKey="metric" stroke="#888" />
-                <YAxis stroke="#888" allowDecimals={false} />
+                <XAxis dataKey="metric" stroke="#888" tick={{ fontSize: 12 }} />
+                <YAxis stroke="#888" allowDecimals={false} tick={{ fontSize: 12 }} />
                 <Tooltip />
-                <Legend />
+                <Legend wrapperStyle={{ fontSize: '0.8rem' }} />
                 <Bar dataKey={compareA.name} fill="#FF2D2D" radius={[6, 6, 0, 0]} />
                 <Bar dataKey={compareB.name} fill="#FF8A8A" radius={[6, 6, 0, 0]} />
               </BarChart>

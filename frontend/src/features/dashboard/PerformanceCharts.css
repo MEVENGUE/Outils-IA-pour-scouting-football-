@@ -28,3 +28,13 @@
     grid-template-columns: 1fr;
   }
 }
+
+@media (max-width: 480px) {
+  .performance {
+    padding: 0.85rem;
+  }
+
+  .chart-box {
+    min-height: 180px;
+  }
+}

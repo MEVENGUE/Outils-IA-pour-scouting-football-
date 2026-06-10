@@ -1,0 +1,66 @@
+.mobile-nav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  border-top: 1px solid var(--border);
+  padding: 0.35rem 0.25rem calc(0.35rem + env(safe-area-inset-bottom, 0px));
+  justify-content: space-around;
+  align-items: stretch;
+  gap: 0.15rem;
+  background: rgba(10, 10, 10, 0.95);
+  backdrop-filter: blur(20px);
+}
+
+.mobile-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  flex: 1;
+  min-width: 0;
+  padding: 0.35rem 0.15rem;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.62rem;
+  cursor: pointer;
+  position: relative;
+}
+
+.mobile-nav-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.mobile-nav-item.active {
+  color: var(--primary-soft);
+  background: rgba(255, 45, 45, 0.08);
+}
+
+.mobile-nav-badge {
+  position: absolute;
+  top: 0.1rem;
+  right: 0.15rem;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--primary);
+  color: white;
+  font-size: 0.58rem;
+  display: grid;
+  place-items: center;
+  padding: 0 0.2rem;
+}
+
+@media (max-width: 900px) {
+  .mobile-nav {
+    display: flex;
+  }
+}

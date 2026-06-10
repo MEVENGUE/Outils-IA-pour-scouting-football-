@@ -1,56 +1,46 @@
 import { motion } from 'framer-motion'
-import {
-  BarChart3,
-  FileText,
-  Globe2,
-  LayoutDashboard,
-  Radar,
-  Search,
-  UserCircle,
-  Sparkles,
-  Star,
-  Users,
-} from 'lucide-react'
+import { Sparkles, X } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { useSystemHealth } from '../hooks/useSystemHealth'
-import type { AppView } from '../types/player'
+import { NAV_ITEMS } from '../config/navigation'
 import './Sidebar.css'
 
-const NAV: {
-  id: AppView
-  title: string
-  description: string
-  icon: typeof Search
-}[] = [
-  { id: 'search', title: 'Search Players', description: 'Recherche globale', icon: Search },
-  { id: 'dashboard', title: 'Dashboard', description: 'Analyse joueur', icon: LayoutDashboard },
-  { id: 'globe', title: '3D Globe Intelligence', description: 'Cartographie', icon: Globe2 },
-  { id: 'reports', title: 'AI Reports', description: 'Rapports scouting', icon: FileText },
-  { id: 'watchlist', title: 'Watchlist', description: 'Joueurs suivis', icon: Star },
-  { id: 'compare', title: 'Compare Players', description: 'Comparaison', icon: Users },
-  { id: 'talent', title: 'Talent Discovery', description: 'Base de données', icon: Radar },
-  { id: 'documents', title: 'Document Analysis', description: 'Centre documentaire', icon: BarChart3 },
-  { id: 'author', title: 'Informations auteur', description: 'FRANCK MEVENGUE', icon: UserCircle },
-]
+interface SidebarProps {
+  open?: boolean
+  onNavigate?: () => void
+}
 
-export default function Sidebar() {
+export default function Sidebar({ open = false, onNavigate }: SidebarProps) {
   const { activeView, setActiveView, watchlistIds } = useApp()
   const { data: health } = useSystemHealth()
 
+  const navigate = (view: typeof activeView) => {
+    setActiveView(view)
+    onNavigate?.()
+  }
+
   return (
-    <aside className="sidebar glass">
+    <aside className={`sidebar glass ${open ? 'sidebar--open' : ''}`}>
       <div className="sidebar-brand">
         <div className="brand-icon brand-logo">
           <img src="/x-scout-logo.jpg" alt="X-SCOUT" />
         </div>
-        <div>
+        <div className="sidebar-brand-copy">
           <strong>X-SCOUT AI</strong>
           <span>Football Intelligence OS</span>
         </div>
+        <button
+          type="button"
+          className="sidebar-close"
+          aria-label="Fermer le menu"
+          onClick={onNavigate}
+        >
+          <X size={20} />
+        </button>
       </div>
 
-      <nav className="sidebar-nav">
-        {NAV.map((item) => {
+      <nav className="sidebar-nav" aria-label="Navigation principale">
+        {NAV_ITEMS.map((item) => {
           const Icon = item.icon
           const active = activeView === item.id
           return (
@@ -59,7 +49,7 @@ export default function Sidebar() {
               type="button"
               className={`nav-item ${active ? 'active' : ''}`}
               whileHover={{ x: 4 }}
-              onClick={() => setActiveView(item.id)}
+              onClick={() => navigate(item.id)}
             >
               <Icon size={18} />
               <div className="nav-copy">

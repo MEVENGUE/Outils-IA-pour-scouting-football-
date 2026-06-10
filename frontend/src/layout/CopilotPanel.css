@@ -6,12 +6,27 @@
   border-left: 1px solid var(--border);
 }
 
+.copilot-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  border: none;
+  background: rgba(0, 0, 0, 0.55);
+  cursor: pointer;
+}
+
 .copilot-header {
   display: flex;
   align-items: center;
   gap: 0.75rem;
   padding: 1rem;
   border-bottom: 1px solid var(--border);
+}
+
+.copilot-header-copy {
+  flex: 1;
+  min-width: 0;
 }
 
 .copilot-header strong {
@@ -21,6 +36,24 @@
 .copilot-header span {
   color: var(--muted);
   font-size: 0.78rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+
+.copilot-close {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  cursor: pointer;
+  flex-shrink: 0;
 }
 
 .copilot-actions {
@@ -43,6 +76,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  -webkit-overflow-scrolling: touch;
 }
 
 .copilot-message {
@@ -63,6 +97,7 @@
 .copilot-message p {
   margin: 0;
   white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .sources,
@@ -120,6 +155,47 @@
 
 @media (max-width: 1200px) {
   .copilot {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 60;
+    width: min(92vw, var(--copilot-width));
+    max-width: var(--copilot-width);
+    transform: translateX(105%);
+    transition: transform 0.25s ease;
+    box-shadow: -8px 0 32px rgba(0, 0, 0, 0.45);
+  }
+
+  .copilot--open {
+    transform: translateX(0);
+  }
+
+  .copilot-overlay {
+    display: block;
+  }
+
+  body:not(.copilot-open) .copilot-overlay {
     display: none;
+  }
+
+  .copilot-close {
+    display: inline-flex;
+  }
+}
+
+@media (max-width: 900px) {
+  .copilot {
+    bottom: var(--mobile-nav-height);
+    width: 100%;
+    max-width: none;
+    border-left: none;
+    border-top: 1px solid var(--border);
+    border-radius: 20px 20px 0 0;
+    transform: translateY(105%);
+  }
+
+  .copilot--open {
+    transform: translateY(0);
   }
 }

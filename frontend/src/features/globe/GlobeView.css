@@ -15,13 +15,16 @@
 .globe-toolbar {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  gap: 0.75rem;
   padding: 1rem;
   border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
 }
 
 .globe-toolbar h3 {
   margin: 0;
+  font-size: clamp(1rem, 4vw, 1.25rem);
 }
 
 .globe-toolbar p {
@@ -33,6 +36,7 @@
 .globe-controls {
   display: flex;
   gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .globe-loader {
@@ -43,4 +47,33 @@
 .intel-globe {
   flex: 1;
   min-height: 520px;
+}
+
+@media (max-width: 900px) {
+  .globe-view {
+    min-height: calc(100vh - var(--topbar-height) - var(--insights-height) - var(--mobile-nav-height) - 2rem);
+  }
+
+  .intel-globe {
+    min-height: 360px;
+  }
+
+  .globe-toolbar {
+    padding: 0.75rem;
+  }
+
+  .globe-controls {
+    width: 100%;
+  }
+
+  .globe-controls .btn {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .intel-globe {
+    min-height: 280px;
+  }
 }
